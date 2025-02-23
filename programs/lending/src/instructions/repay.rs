@@ -6,8 +6,8 @@ use anchor_spl::{
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 use crate::{
-    calculate_accrued_interest, error::LendingError, get_price_in_usd, update_health_factor, Bank,
-    User, BANK_SEED, SOL_USD_FEED_ID, TREASURY_SEED, USDC_USD_FEED_ID, USER_SEED,
+    calculate_accrued_interest, calculate_health_factor, error::LendingError, get_price_in_usd,
+    Bank, User, BANK_SEED, SOL_USD_FEED_ID, TREASURY_SEED, USDC_USD_FEED_ID, USER_SEED,
 };
 
 #[derive(Accounts)]
@@ -66,9 +66,19 @@ impl Repay<'_> {
         let sol_price = get_price_in_usd(SOL_USD_FEED_ID, price_update_a, &clock)?;
         let usdc_price = get_price_in_usd(USDC_USD_FEED_ID, price_update_b, &clock)?;
 
-        let (user_borrowed, user_borrow_shares) = match mint_key {
-            key if key == user.usdc_mint => (user.borrowed_usdc, user.borrowed_usdc_shares),
-            _ => (user.borrowed_sol, user.borrowed_sol_shares),
+        let (user_borrowed, user_borrow_shares, sol_decimal, usdc_decimal) = match mint_key {
+            key if key == user.usdc_mint => (
+                user.borrowed_usdc,
+                user.borrowed_usdc_shares,
+                ctx.accounts.mint_b.decimals,
+                ctx.accounts.mint_a.decimals,
+            ),
+            _ => (
+                user.borrowed_sol,
+                user.borrowed_sol_shares,
+                ctx.accounts.mint_a.decimals,
+                ctx.accounts.mint_b.decimals,
+            ),
         };
 
         let accrued_interest = calculate_accrued_interest(
@@ -120,15 +130,6 @@ impl Repay<'_> {
                     .borrowed_usdc_shares
                     .checked_sub(shares_to_remove)
                     .ok_or(LendingError::Underflow)?;
-
-                update_health_factor(
-                    bank,
-                    user,
-                    usdc_price,
-                    sol_price,
-                    ctx.accounts.mint_b.decimals,
-                    ctx.accounts.mint_a.decimals,
-                )?;
             }
             _ => {
                 user.borrowed_sol = user
@@ -139,17 +140,17 @@ impl Repay<'_> {
                     .borrowed_sol_shares
                     .checked_sub(shares_to_remove)
                     .ok_or(LendingError::Underflow)?;
-
-                update_health_factor(
-                    bank,
-                    user,
-                    sol_price,
-                    usdc_price,
-                    ctx.accounts.mint_a.decimals,
-                    ctx.accounts.mint_b.decimals,
-                )?;
             }
         };
+
+        user.health_factor = calculate_health_factor(
+            bank.liquidation_threshold,
+            user,
+            sol_price,
+            usdc_price,
+            sol_decimal,
+            usdc_decimal,
+        )?;
 
         bank.last_updated = clock.unix_timestamp;
         user.last_updated = clock.unix_timestamp;

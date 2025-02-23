@@ -129,11 +129,12 @@ describe("deposit", () => {
       },
     ]));
 
-    const liquidationThreshold = new BN(9000); // 90% in basis points
-    const liquidationBonus = new BN(500); // 5% in basis points
-    const liquidationCloseFactor = new BN(2500); // 25% in basis points
-    const maxLtv = new BN(8000); // 80% in basis points
-    const interestRate = new BN(250); // 2.5% in basis points
+    const liquidationThreshold = 9000; // 90% in basis points
+    const liquidationBonus = 500; // 5% in basis points
+    const liquidationCloseFactor = 2500; // 25% in basis points
+    const maxLtv = 8000; // 80% in basis points
+    const minHealthFactor = 1.0;
+    const interestRate = 250; // 2.5% in basis points
 
     await program.methods
       .initBank({
@@ -141,6 +142,7 @@ describe("deposit", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -159,6 +161,7 @@ describe("deposit", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({

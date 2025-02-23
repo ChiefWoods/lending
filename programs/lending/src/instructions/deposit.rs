@@ -6,7 +6,7 @@ use anchor_spl::{
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 use crate::{
-    error::LendingError, get_price_in_usd, state::*, update_health_factor, BANK_SEED,
+    calculate_health_factor, error::LendingError, get_price_in_usd, state::*, BANK_SEED,
     SOL_USD_FEED_ID, TREASURY_SEED, USDC_USD_FEED_ID, USER_SEED,
 };
 
@@ -87,7 +87,7 @@ impl Deposit<'_> {
             shares
         };
 
-        match ctx.accounts.mint_a.key() {
+        let (sol_decimal, usdc_decimal) = match ctx.accounts.mint_a.key() {
             key if key == user.usdc_mint => {
                 user.deposited_usdc = user
                     .deposited_usdc
@@ -98,14 +98,7 @@ impl Deposit<'_> {
                     .checked_add(users_shares)
                     .ok_or(LendingError::Overflow)?;
 
-                update_health_factor(
-                    bank,
-                    user,
-                    usdc_price,
-                    sol_price,
-                    ctx.accounts.mint_b.decimals,
-                    ctx.accounts.mint_a.decimals,
-                )?;
+                (ctx.accounts.mint_b.decimals, ctx.accounts.mint_a.decimals)
             }
             _ => {
                 user.deposited_sol = user
@@ -117,16 +110,18 @@ impl Deposit<'_> {
                     .checked_add(users_shares)
                     .ok_or(LendingError::Overflow)?;
 
-                update_health_factor(
-                    bank,
-                    user,
-                    sol_price,
-                    usdc_price,
-                    ctx.accounts.mint_a.decimals,
-                    ctx.accounts.mint_b.decimals,
-                )?;
+                (ctx.accounts.mint_a.decimals, ctx.accounts.mint_b.decimals)
             }
         };
+
+        user.health_factor = calculate_health_factor(
+            bank.liquidation_threshold,
+            user,
+            sol_price,
+            usdc_price,
+            sol_decimal,
+            usdc_decimal,
+        )?;
 
         bank.last_updated = clock.unix_timestamp;
 

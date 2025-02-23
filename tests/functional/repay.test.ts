@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { Clock, ProgramTestContext } from "solana-bankrun";
+import { ProgramTestContext } from "solana-bankrun";
 import { BankrunProvider } from "anchor-bankrun";
 import { AnchorError, BN, Program } from "@coral-xyz/anchor";
 import {
@@ -10,6 +10,7 @@ import {
   SystemProgram,
 } from "@solana/web3.js";
 import {
+  forwardTime,
   getBankrunSetup,
   mintToBankSol,
   mintToBankUsdc,
@@ -134,11 +135,12 @@ describe("repay", () => {
       },
     ]));
 
-    const liquidationThreshold = new BN(9000); // 90% in basis points
-    const liquidationBonus = new BN(500); // 5% in basis points
-    const liquidationCloseFactor = new BN(2500); // 25% in basis points
-    const maxLtv = new BN(8000); // 80% in basis points
-    const interestRate = new BN(250); // 2.5% in basis points
+    const liquidationThreshold = 9000; // 90% in basis points
+    const liquidationBonus = 500; // 5% in basis points
+    const liquidationCloseFactor = 2500; // 25% in basis points
+    const maxLtv = 8000; // 80% in basis points
+    const minHealthFactor = 1.0;
+    const interestRate = 250; // 2.5% in basis points
 
     await program.methods
       .initBank({
@@ -146,6 +148,7 @@ describe("repay", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -164,6 +167,7 @@ describe("repay", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -183,7 +187,9 @@ describe("repay", () => {
       })
       .signers([userA])
       .rpc();
+  });
 
+  test("repay SOL", async () => {
     await program.methods
       .deposit(new BN(500 * 10 ** 6)) // 500 USDC
       .accounts({
@@ -198,38 +204,18 @@ describe("repay", () => {
       .signers([userA])
       .rpc();
 
-    await program.methods
-      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
-      .accounts({
-        authority: userA.publicKey,
-        mintA: NATIVE_MINT,
-        mintB: USDC_MINT,
-        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
-        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
-        tokenProgramA: tokenProgram,
-        tokenProgramB: tokenProgram,
-      })
-      .signers([userA])
-      .rpc();
-
-    let clock = await context.banksClient.getClock();
-    context.setClock(
-      new Clock(
-        clock.slot,
-        clock.epochStartTimestamp,
-        clock.epoch,
-        clock.leaderScheduleEpoch,
-        clock.unixTimestamp + BigInt(15)
-      )
-    ); // elapsed 15 secs
+    await forwardTime(context, 10); // elapsed 10 secs
 
     await setPriceFeedAccs(context, [
       SOL_USD_PRICE_FEED_PDA,
       USDC_USD_PRICE_FEED_PDA,
     ]);
 
+    const mint = NATIVE_MINT;
+    const amount = new BN(LAMPORTS_PER_SOL); // 1 SOL
+
     await program.methods
-      .borrow(new BN(LAMPORTS_PER_SOL)) // 1 SOL
+      .borrow(amount)
       .accounts({
         authority: userA.publicKey,
         mintA: NATIVE_MINT, // borrowing SOL
@@ -242,39 +228,12 @@ describe("repay", () => {
       .signers([userA])
       .rpc();
 
-    await program.methods
-      .borrow(new BN(100 * 10 ** 6)) // 100 USDC
-      .accounts({
-        authority: userA.publicKey,
-        mintA: USDC_MINT, // borrowing USDC
-        mintB: NATIVE_MINT, // collateral SOL
-        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
-        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
-        tokenProgramA: tokenProgram,
-        tokenProgramB: tokenProgram,
-      })
-      .signers([userA])
-      .rpc();
-
-    clock = await context.banksClient.getClock();
-    context.setClock(
-      new Clock(
-        clock.slot,
-        clock.epochStartTimestamp,
-        clock.epoch,
-        clock.leaderScheduleEpoch,
-        clock.unixTimestamp + BigInt(15)
-      )
-    ); // elapsed 15 secs
+    await forwardTime(context, 10); // elapsed 10 secs
 
     await setPriceFeedAccs(context, [
       SOL_USD_PRICE_FEED_PDA,
       USDC_USD_PRICE_FEED_PDA,
     ]);
-  });
-
-  test("repay SOL", async () => {
-    const mint = NATIVE_MINT;
 
     const [bankSolAta] = getBankPdaAndBump(mint);
     let bankSolAcc = await getBankAcc(program, bankSolAta);
@@ -293,8 +252,6 @@ describe("repay", () => {
     const initBankSolAtaAccBal = (
       await getAccount(provider.connection, bankSolAtaPda)
     ).amount;
-
-    const amount = new BN(LAMPORTS_PER_SOL); // 1 SOL
 
     await program.methods
       .repay(amount)
@@ -346,7 +303,43 @@ describe("repay", () => {
   });
 
   test("repay USDC", async () => {
+    await program.methods
+      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
+      .accounts({
+        authority: userA.publicKey,
+        mintA: NATIVE_MINT,
+        mintB: USDC_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    const amount = new BN(100 * 10 ** 6); // 100 USDC
     const mint = USDC_MINT;
+
+    await program.methods
+      .borrow(amount)
+      .accounts({
+        authority: userA.publicKey,
+        mintA: mint, // borrowing USDC
+        mintB: NATIVE_MINT, // collateral SOL
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
 
     const [bankUsdcAta] = getBankPdaAndBump(mint);
     let bankUsdcAcc = await getBankAcc(program, bankUsdcAta);
@@ -365,8 +358,6 @@ describe("repay", () => {
     const initBankUsdcAtaAccBal = (
       await getAccount(provider.connection, bankUsdcAtaPda)
     ).amount;
-
-    const amount = new BN(100 * 10 ** 6); // 100 USDC
 
     await program.methods
       .repay(amount)
@@ -418,6 +409,48 @@ describe("repay", () => {
   });
 
   test("throws if repay amount is 0", async () => {
+    await program.methods
+      .deposit(new BN(500 * 10 ** 6)) // 500 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT,
+        mintB: NATIVE_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    await program.methods
+      .borrow(new BN(LAMPORTS_PER_SOL)) // 1 SOL
+      .accounts({
+        authority: userA.publicKey,
+        mintA: NATIVE_MINT, // borrowing SOL
+        mintB: USDC_MINT, // collateral USDC
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
     const amount = new BN(0);
 
     try {
@@ -444,7 +477,49 @@ describe("repay", () => {
   });
 
   test("throws if repaying more than borrowed", async () => {
-    const amount = new BN(2 * LAMPORTS_PER_SOL); // repaying 2 SOL, borrowed 1 SOL
+    await program.methods
+      .deposit(new BN(500 * 10 ** 6)) // 500 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT,
+        mintB: NATIVE_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    await program.methods
+      .borrow(new BN(LAMPORTS_PER_SOL)) // 1 SOL
+      .accounts({
+        authority: userA.publicKey,
+        mintA: NATIVE_MINT, // borrowing SOL
+        mintB: USDC_MINT, // collateral USDC
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    const amount = new BN(2 * LAMPORTS_PER_SOL); // 2 SOL
 
     try {
       await program.methods

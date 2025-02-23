@@ -29,7 +29,7 @@ impl InitUser<'_> {
             deposited_usdc_shares: 0,
             borrowed_usdc: 0,
             borrowed_usdc_shares: 0,
-            health_factor: 0,
+            health_factor: 0.0,
             last_updated: Clock::get()?.unix_timestamp,
             authority: ctx.accounts.authority.key(),
             usdc_mint,

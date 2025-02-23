@@ -1,6 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
 import idl from "../target/idl/lending.json";
-import { BN } from "@coral-xyz/anchor";
 
 export function getBankPdaAndBump(mint: PublicKey) {
   return PublicKey.findProgramAddressSync(

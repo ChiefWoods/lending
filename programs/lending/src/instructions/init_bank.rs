@@ -5,11 +5,12 @@ use crate::{Bank, BANK_SEED, TREASURY_SEED};
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct InitBankArgs {
-    pub liquidation_threshold: u64,
-    pub liquidation_bonus: u64,
-    pub liquidation_close_factor: u64,
-    pub max_ltv: u64,
-    pub interest_rate: u64,
+    pub liquidation_threshold: u16,
+    pub liquidation_bonus: u16,
+    pub liquidation_close_factor: u16,
+    pub max_ltv: u16,
+    pub min_health_factor: f64,
+    pub interest_rate: u16,
 }
 
 #[derive(Accounts)]
@@ -53,6 +54,7 @@ impl InitBank<'_> {
             liquidation_bonus: args.liquidation_bonus,
             liquidation_close_factor: args.liquidation_close_factor,
             max_ltv: args.max_ltv,
+            min_health_factor: args.min_health_factor,
             interest_rate: args.interest_rate,
             last_updated: Clock::get()?.unix_timestamp,
             authority: ctx.accounts.authority.key(),

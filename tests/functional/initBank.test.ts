@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
 import { ProgramTestContext } from "solana-bankrun";
 import { BankrunProvider } from "anchor-bankrun";
-import { BN, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
 import { getBankrunSetup } from "../setup";
 import { USDC_MINT } from "../constants";
@@ -36,11 +36,12 @@ describe("initBank", () => {
   });
 
   test("initialize a bank", async () => {
-    const liquidationThreshold = new BN(9000); // 90% in basis points
-    const liquidationBonus = new BN(500); // 5% in basis points
-    const liquidationCloseFactor = new BN(2500); // 25% in basis points
-    const maxLtv = new BN(8000); // 80% in basis points
-    const interestRate = new BN(250); // 2.5% in basis points
+    const liquidationThreshold = 9000; // 90% in basis points
+    const liquidationBonus = 500; // 5% in basis points
+    const liquidationCloseFactor = 2500; // 25% in basis points
+    const maxLtv = 8000; // 80% in basis points
+    const minHealthFactor = 1.0;
+    const interestRate = 250; // 2.5% in basis points
     const mint = USDC_MINT;
 
     await program.methods
@@ -49,6 +50,7 @@ describe("initBank", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -69,17 +71,11 @@ describe("initBank", () => {
     expect(bankAcc.totalDepositShares.toNumber()).toEqual(0);
     expect(bankAcc.totalBorrowed.toNumber()).toEqual(0);
     expect(bankAcc.totalBorrowedShares.toNumber()).toEqual(0);
-    expect(bankAcc.liquidationThreshold.toNumber()).toEqual(
-      liquidationThreshold.toNumber()
-    );
-    expect(bankAcc.liquidationBonus.toNumber()).toEqual(
-      liquidationBonus.toNumber()
-    );
-    expect(bankAcc.liquidationCloseFactor.toNumber()).toEqual(
-      liquidationCloseFactor.toNumber()
-    );
-    expect(bankAcc.maxLtv.toNumber()).toEqual(maxLtv.toNumber());
-    expect(bankAcc.interestRate.toNumber()).toEqual(interestRate.toNumber());
+    expect(bankAcc.liquidationThreshold).toEqual(liquidationThreshold);
+    expect(bankAcc.liquidationBonus).toEqual(liquidationBonus);
+    expect(bankAcc.liquidationCloseFactor).toEqual(liquidationCloseFactor);
+    expect(bankAcc.maxLtv).toEqual(maxLtv);
+    expect(bankAcc.interestRate).toEqual(interestRate);
     expect(bankAcc.authority).toStrictEqual(authority.publicKey);
     expect(bankAcc.mint).toStrictEqual(mint);
 

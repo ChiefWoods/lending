@@ -163,10 +163,10 @@ impl Liquidate<'_> {
 
         let health_factor = total_collateral_in_usd
             .div(total_borrowed_in_usd)
-            .mul(MAX_BASIS_POINTS as f64) as u64;
+            .mul(MAX_BASIS_POINTS as f64);
 
         require!(
-            health_factor < collateral_bank.liquidation_threshold,
+            health_factor < collateral_bank.min_health_factor,
             LendingError::NotUnderCollateralized
         );
 
@@ -176,7 +176,7 @@ impl Liquidate<'_> {
         };
 
         let liquidation_amount = total_borrowed
-            .checked_mul(borrowed_bank.liquidation_close_factor)
+            .checked_mul(borrowed_bank.liquidation_close_factor.into())
             .ok_or(LendingError::Overflow)?
             .checked_div(MAX_BASIS_POINTS)
             .ok_or(LendingError::DivisionByZero)?;

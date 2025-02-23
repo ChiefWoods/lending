@@ -10,6 +10,7 @@ import {
   SystemProgram,
 } from "@solana/web3.js";
 import {
+  forwardTime,
   getBankrunSetup,
   mintToBankSol,
   mintToBankUsdc,
@@ -172,11 +173,12 @@ describe("liquidate", () => {
       },
     ]));
 
-    const liquidationThreshold = new BN(9000); // 90% in basis points
-    const liquidationBonus = new BN(500); // 5% in basis points
-    const liquidationCloseFactor = new BN(2500); // 25% in basis points
-    const maxLtv = new BN(8000); // 80% in basis points
-    const interestRate = new BN(250); // 2.5% in basis points
+    const liquidationThreshold = 9000; // 90% in basis points
+    const liquidationBonus = 500; // 5% in basis points
+    const liquidationCloseFactor = 2500; // 25% in basis points
+    const maxLtv = 8000; // 80% in basis points
+    const minHealthFactor = 1.0;
+    const interestRate = 250; // 2.5% in basis points
 
     await program.methods
       .initBank({
@@ -184,6 +186,7 @@ describe("liquidate", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -202,6 +205,7 @@ describe("liquidate", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -221,7 +225,9 @@ describe("liquidate", () => {
       })
       .signers([userA])
       .rpc();
+  });
 
+  test.skip("liquidate borrowed SOL position", async () => {
     await program.methods
       .deposit(new BN(500 * 10 ** 6)) // 500 USDC
       .accounts({
@@ -236,30 +242,7 @@ describe("liquidate", () => {
       .signers([userA])
       .rpc();
 
-    await program.methods
-      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
-      .accounts({
-        authority: userA.publicKey,
-        mintA: NATIVE_MINT,
-        mintB: USDC_MINT,
-        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
-        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
-        tokenProgramA: tokenProgram,
-        tokenProgramB: tokenProgram,
-      })
-      .signers([userA])
-      .rpc();
-
-    let clock = await context.banksClient.getClock();
-    context.setClock(
-      new Clock(
-        clock.slot,
-        clock.epochStartTimestamp,
-        clock.epoch,
-        clock.leaderScheduleEpoch,
-        clock.unixTimestamp + BigInt(15)
-      )
-    ); // elapsed 15 secs
+    await forwardTime(context, 10); // elapsed 10 secs
 
     await setPriceFeedAccs(context, [
       SOL_USD_PRICE_FEED_PDA,
@@ -280,39 +263,15 @@ describe("liquidate", () => {
       .signers([userA])
       .rpc();
 
-    await program.methods
-      .borrow(new BN(100 * 10 ** 6)) // 100 USDC
-      .accounts({
-        authority: userA.publicKey,
-        mintA: USDC_MINT, // borrowing USDC
-        mintB: NATIVE_MINT, // collateral SOL
-        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
-        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
-        tokenProgramA: tokenProgram,
-        tokenProgramB: tokenProgram,
-      })
-      .signers([userA])
-      .rpc();
-
-    clock = await context.banksClient.getClock();
-    context.setClock(
-      new Clock(
-        clock.slot,
-        clock.epochStartTimestamp,
-        clock.epoch,
-        clock.leaderScheduleEpoch,
-        clock.unixTimestamp + BigInt(60 * 60 * 24 * 365 * 50)
-      )
-    ); // elapsed 50 years
+    await forwardTime(context, 10); // elapsed 10 secs
 
     await setPriceFeedAccs(context, [
       SOL_USD_PRICE_FEED_PDA,
       USDC_USD_PRICE_FEED_PDA,
     ]);
-  });
 
-  test.skip("liquidate borrowed SOL position", async () => {
-    // TODO: not tested
+    // TODO: not tested, need reliable way to alter price feed to achieve large enough difference to trigger liquidation
+
     const [userPda] = getUserPdaAndBump(userA.publicKey);
     let userAcc = await getUserAcc(program, userPda);
 

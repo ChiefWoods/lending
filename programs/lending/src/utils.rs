@@ -6,58 +6,53 @@ use std::{
 use anchor_lang::prelude::*;
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 
-use crate::{error::LendingError, Bank, User, MAXIMUM_AGE, MAX_BASIS_POINTS};
+use crate::{User, MAXIMUM_AGE, MAX_BASIS_POINTS};
 
-pub fn update_health_factor(
-    bank: &Account<'_, Bank>,
+pub fn calculate_health_factor(
+    liquidation_threshold: u16,
     user: &mut Account<'_, User>,
-    price_a: f64,
-    price_b: f64,
-    decimal_a: u8,
-    decimal_b: u8,
-) -> Result<()> {
+    sol_price: f64,
+    usdc_price: f64,
+    sol_decimal: u8,
+    usdc_decimal: u8,
+) -> Result<f64> {
     if user.borrowed_sol == 0 && user.borrowed_usdc == 0 {
-        user.health_factor = u64::MAX;
-        return Ok(());
+        return Ok(f64::MAX);
     };
 
-    let total_collateral_value = get_total_in_usd(user.deposited_sol, price_a, decimal_a)?
-        .add(get_total_in_usd(user.deposited_usdc, price_b, decimal_b)?)
-        as u64;
+    let total_collateral_in_usd = get_total_in_usd(user.deposited_sol, sol_price, sol_decimal)?
+        .add(get_total_in_usd(
+            user.deposited_usdc,
+            usdc_price,
+            usdc_decimal,
+        )?);
 
-    let adjusted_collateral_value = total_collateral_value
-        .checked_mul(bank.liquidation_threshold)
-        .ok_or(LendingError::Overflow)?
-        .checked_div(MAX_BASIS_POINTS)
-        .ok_or(LendingError::Overflow)?;
+    let adjusted_collateral_in_usd = total_collateral_in_usd
+        .mul(liquidation_threshold as f64)
+        .div(MAX_BASIS_POINTS as f64);
 
-    let total_borrowed_value = get_total_in_usd(user.borrowed_sol, price_a, decimal_a)?
-        .add(get_total_in_usd(user.borrowed_usdc, price_b, decimal_b)?)
-        as u64;
+    let total_borrowed_in_usd = get_total_in_usd(user.borrowed_sol, sol_price, sol_decimal)?.add(
+        get_total_in_usd(user.borrowed_usdc, usdc_price, usdc_decimal)?,
+    );
 
-    user.health_factor = if total_borrowed_value == 0 {
-        u64::MAX
+    if total_borrowed_in_usd == 0.0 {
+        Ok(f64::MAX)
     } else {
-        adjusted_collateral_value
-            .checked_mul(MAX_BASIS_POINTS)
-            .ok_or(LendingError::Overflow)?
-            .checked_div(total_borrowed_value)
-            .ok_or(LendingError::Overflow)?
-    };
-
-    Ok(())
+        Ok(adjusted_collateral_in_usd.div(total_borrowed_in_usd as f64))
+    }
 }
 
 pub fn calculate_accrued_interest(
     amount_in_usd: u64,
-    interest_rate: u64,
+    interest_rate: u16,
     current_time: i64,
     last_updated: i64,
 ) -> Result<u64> {
     let time_elapsed = current_time - last_updated;
-    let interest_per_second_rate = interest_rate as f64 / 10000.0 / 31536000.0;
-    let total_value =
-        (amount_in_usd as f64 * E.powf(interest_per_second_rate * time_elapsed as f64)) as u64;
+    let interest_per_second_rate = interest_rate as u64 / MAX_BASIS_POINTS / (60 * 60 * 24 * 365);
+    let total_value = (amount_in_usd as f64
+        * E.powf(interest_per_second_rate as f64 * time_elapsed as f64))
+        as u64;
 
     Ok(total_value - amount_in_usd)
 }

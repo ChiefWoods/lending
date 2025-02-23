@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { Clock, ProgramTestContext } from "solana-bankrun";
+import { ProgramTestContext } from "solana-bankrun";
 import { BankrunProvider } from "anchor-bankrun";
 import { AnchorError, BN, Program } from "@coral-xyz/anchor";
 import {
@@ -10,6 +10,7 @@ import {
   SystemProgram,
 } from "@solana/web3.js";
 import {
+  forwardTime,
   getBankrunSetup,
   mintToBankSol,
   mintToBankUsdc,
@@ -134,11 +135,12 @@ describe("borrow", () => {
       },
     ]));
 
-    const liquidationThreshold = new BN(9000); // 90% in basis points
-    const liquidationBonus = new BN(500); // 5% in basis points
-    const liquidationCloseFactor = new BN(2500); // 25% in basis points
-    const maxLtv = new BN(8000); // 80% in basis points
-    const interestRate = new BN(250); // 2.5% in basis points
+    const liquidationThreshold = 9000; // 90% in basis points
+    const liquidationBonus = 500; // 5% in basis points
+    const liquidationCloseFactor = 2500; // 25% in basis points
+    const maxLtv = 8000; // 80% in basis points
+    const minHealthFactor = 1.0;
+    const interestRate = 250; // 2.5% in basis points
 
     await program.methods
       .initBank({
@@ -146,6 +148,7 @@ describe("borrow", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -164,6 +167,7 @@ describe("borrow", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -183,7 +187,9 @@ describe("borrow", () => {
       })
       .signers([userA])
       .rpc();
+  });
 
+  test("borrow SOL against USDC", async () => {
     await program.methods
       .deposit(new BN(500 * 10 ** 6)) // 500 USDC
       .accounts({
@@ -198,38 +204,13 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    await program.methods
-      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
-      .accounts({
-        authority: userA.publicKey,
-        mintA: NATIVE_MINT,
-        mintB: USDC_MINT,
-        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
-        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
-        tokenProgramA: tokenProgram,
-        tokenProgramB: tokenProgram,
-      })
-      .signers([userA])
-      .rpc();
-
-    const clock = await context.banksClient.getClock();
-    context.setClock(
-      new Clock(
-        clock.slot,
-        clock.epochStartTimestamp,
-        clock.epoch,
-        clock.leaderScheduleEpoch,
-        clock.unixTimestamp + BigInt(15)
-      )
-    ); // elapsed 15 secs
+    await forwardTime(context, 10); // elapsed 10 secs
 
     await setPriceFeedAccs(context, [
       SOL_USD_PRICE_FEED_PDA,
       USDC_USD_PRICE_FEED_PDA,
     ]);
-  });
 
-  test("borrow SOL against USDC", async () => {
     const mint = NATIVE_MINT;
 
     const [bankSolAtaPda] = getBankAtaPdaAndBump(mint);
@@ -282,6 +263,27 @@ describe("borrow", () => {
   });
 
   test("borrow USDC against SOL", async () => {
+    await program.methods
+      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
+      .accounts({
+        authority: userA.publicKey,
+        mintA: NATIVE_MINT,
+        mintB: USDC_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
     const mint = USDC_MINT;
 
     const [bankUsdcAtaPda] = getBankAtaPdaAndBump(mint);
@@ -334,6 +336,27 @@ describe("borrow", () => {
   });
 
   test("throws if borrow amount is 0", async () => {
+    await program.methods
+      .deposit(new BN(500 * 10 ** 6)) // 500 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT,
+        mintB: NATIVE_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
     const amount = new BN(0);
 
     try {
@@ -360,7 +383,28 @@ describe("borrow", () => {
   });
 
   test("throws if borrow amount exceeds LTV", async () => {
-    const amount = new BN(10 * LAMPORTS_PER_SOL); // 10 SOL against 500 USDC collateral
+    await program.methods
+      .deposit(new BN(500 * 10 ** 6)) // 500 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT,
+        mintB: NATIVE_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    const amount = new BN(10 * LAMPORTS_PER_SOL); // 10 SOL
 
     try {
       await program.methods

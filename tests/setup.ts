@@ -1,6 +1,11 @@
 import { Program } from "@coral-xyz/anchor";
 import { BankrunProvider } from "anchor-bankrun";
-import { AddedAccount, ProgramTestContext, startAnchor } from "solana-bankrun";
+import {
+  AddedAccount,
+  Clock,
+  ProgramTestContext,
+  startAnchor,
+} from "solana-bankrun";
 import { Lending } from "../target/types/lending";
 import idl from "../target/idl/lending.json";
 import {
@@ -117,4 +122,17 @@ export async function setPriceFeedAccs(
   accInfos.forEach((info, i) => {
     context.setAccount(pubkeys[i], info);
   });
+}
+
+export async function forwardTime(context: ProgramTestContext, sec: number) {
+  const clock = await context.banksClient.getClock();
+  context.setClock(
+    new Clock(
+      clock.slot,
+      clock.epochStartTimestamp,
+      clock.epoch,
+      clock.leaderScheduleEpoch,
+      clock.unixTimestamp + BigInt(sec)
+    )
+  );
 }

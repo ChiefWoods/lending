@@ -129,11 +129,12 @@ describe("withdraw", () => {
       },
     ]));
 
-    const liquidationThreshold = new BN(9000); // 90% in basis points
-    const liquidationBonus = new BN(500); // 5% in basis points
-    const liquidationCloseFactor = new BN(2500); // 25% in basis points
-    const maxLtv = new BN(8000); // 80% in basis points
-    const interestRate = new BN(250); // 2.5% in basis points
+    const liquidationThreshold = 9000; // 90% in basis points
+    const liquidationBonus = 500; // 5% in basis points
+    const liquidationCloseFactor = 2500; // 25% in basis points
+    const maxLtv = 8000; // 80% in basis points
+    const minHealthFactor = 1.0;
+    const interestRate = 250; // 2.5% in basis points
 
     await program.methods
       .initBank({
@@ -141,6 +142,7 @@ describe("withdraw", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -159,6 +161,7 @@ describe("withdraw", () => {
         liquidationBonus,
         liquidationCloseFactor,
         maxLtv,
+        minHealthFactor,
         interestRate,
       })
       .accounts({
@@ -178,12 +181,16 @@ describe("withdraw", () => {
       })
       .signers([userA])
       .rpc();
+  });
+
+  test("withdraw USDC", async () => {
+    const mint = USDC_MINT;
 
     await program.methods
       .deposit(new BN(10 * 10 ** 6)) // 10 USDC
       .accounts({
         authority: userA.publicKey,
-        mintA: USDC_MINT,
+        mintA: mint,
         mintB: NATIVE_MINT,
         priceUpdateA: SOL_USD_PRICE_FEED_PDA,
         priceUpdateB: USDC_USD_PRICE_FEED_PDA,
@@ -192,24 +199,6 @@ describe("withdraw", () => {
       })
       .signers([userA])
       .rpc();
-
-    await program.methods
-      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
-      .accounts({
-        authority: userA.publicKey,
-        mintA: NATIVE_MINT,
-        mintB: USDC_MINT,
-        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
-        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
-        tokenProgramA: tokenProgram,
-        tokenProgramB: tokenProgram,
-      })
-      .signers([userA])
-      .rpc();
-  });
-
-  test("withdraw USDC", async () => {
-    const mint = USDC_MINT;
 
     const [bankUsdcPda] = getBankPdaAndBump(mint);
     let bankUsdcAcc = await getBankAcc(program, bankUsdcPda);
@@ -288,6 +277,20 @@ describe("withdraw", () => {
   test("withdraw SOL", async () => {
     const mint = NATIVE_MINT;
 
+    await program.methods
+      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
+      .accounts({
+        authority: userA.publicKey,
+        mintA: mint,
+        mintB: USDC_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
     const [bankSolPda] = getBankPdaAndBump(mint);
     let bankSolAcc = await getBankAcc(program, bankSolPda);
 
@@ -357,6 +360,20 @@ describe("withdraw", () => {
   });
 
   test("throws if withdrawing an amount of 0", async () => {
+    await program.methods
+      .deposit(new BN(10 * 10 ** 6)) // 10 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT,
+        mintB: NATIVE_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
     const amount = new BN(0);
 
     try {
@@ -383,7 +400,21 @@ describe("withdraw", () => {
   });
 
   test("throws if withdrawing more than deposited", async () => {
-    const amount = new BN(20 * 10 ** 6); // 20 USDC, deposited 10 USDC
+    await program.methods
+      .deposit(new BN(10 * 10 ** 6)) // 10 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT,
+        mintB: NATIVE_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    const amount = new BN(20 * 10 ** 6); // 20 USDC
 
     try {
       await program.methods

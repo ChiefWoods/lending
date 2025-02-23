@@ -8,8 +8,8 @@ use anchor_spl::{
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 use crate::{
-    calculate_accrued_interest, error::LendingError, get_price_in_usd, get_total_in_usd,
-    update_health_factor, Bank, User, BANK_SEED, MAX_BASIS_POINTS, SOL_USD_FEED_ID, TREASURY_SEED,
+    calculate_accrued_interest, calculate_health_factor, error::LendingError, get_price_in_usd,
+    get_total_in_usd, Bank, User, BANK_SEED, MAX_BASIS_POINTS, SOL_USD_FEED_ID, TREASURY_SEED,
     USDC_USD_FEED_ID, USER_SEED,
 };
 
@@ -69,7 +69,7 @@ impl Borrow<'_> {
         let sol_price = get_price_in_usd(SOL_USD_FEED_ID, price_update_a, &clock)?;
         let usdc_price = get_price_in_usd(USDC_USD_FEED_ID, price_update_b, &clock)?;
 
-        let (total_collateral_usd, amount_usd) = match mint_key {
+        let (total_collateral_usd, amount_usd, sol_decimal, usdc_decimal) = match mint_key {
             key if key == user.usdc_mint => {
                 let accrued_interest = calculate_accrued_interest(
                     user.deposited_sol,
@@ -89,7 +89,12 @@ impl Borrow<'_> {
                 let total_usdc_in_usd =
                     get_total_in_usd(amount, usdc_price, ctx.accounts.mint_a.decimals)?;
 
-                (total_sol_in_usd, total_usdc_in_usd)
+                (
+                    total_sol_in_usd,
+                    total_usdc_in_usd,
+                    ctx.accounts.mint_b.decimals,
+                    ctx.accounts.mint_a.decimals,
+                )
             }
             _ => {
                 let accrued_interest = calculate_accrued_interest(
@@ -110,7 +115,12 @@ impl Borrow<'_> {
                 let total_sol_in_usd =
                     get_total_in_usd(amount, sol_price, ctx.accounts.mint_a.decimals)?;
 
-                (total_usdc_in_usd, total_sol_in_usd)
+                (
+                    total_usdc_in_usd,
+                    total_sol_in_usd,
+                    ctx.accounts.mint_a.decimals,
+                    ctx.accounts.mint_b.decimals,
+                )
             }
         };
 
@@ -153,15 +163,6 @@ impl Borrow<'_> {
                     .borrowed_usdc_shares
                     .checked_add(borrow_shares)
                     .ok_or(LendingError::Overflow)?;
-
-                update_health_factor(
-                    bank,
-                    user,
-                    usdc_price,
-                    sol_price,
-                    ctx.accounts.mint_b.decimals,
-                    ctx.accounts.mint_a.decimals,
-                )?;
             }
             _ => {
                 user.borrowed_sol = user
@@ -172,21 +173,21 @@ impl Borrow<'_> {
                     .borrowed_sol_shares
                     .checked_add(borrow_shares)
                     .ok_or(LendingError::Overflow)?;
-
-                update_health_factor(
-                    bank,
-                    user,
-                    sol_price,
-                    usdc_price,
-                    ctx.accounts.mint_a.decimals,
-                    ctx.accounts.mint_b.decimals,
-                )?;
             }
         };
 
+        user.health_factor = calculate_health_factor(
+            bank.liquidation_threshold,
+            user,
+            sol_price,
+            usdc_price,
+            sol_decimal,
+            usdc_decimal,
+        )?;
+
         require_gte!(
             user.health_factor,
-            bank.liquidation_threshold,
+            bank.min_health_factor,
             LendingError::BelowLiquidationThreshold
         );
 

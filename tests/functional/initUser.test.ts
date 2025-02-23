@@ -55,7 +55,7 @@ describe("initUser", () => {
     expect(userAcc.depositedUsdcShares.toNumber()).toEqual(0);
     expect(userAcc.borrowedUsdc.toNumber()).toEqual(0);
     expect(userAcc.borrowedUsdcShares.toNumber()).toEqual(0);
-    expect(userAcc.healthFactor.toNumber()).toEqual(0);
+    expect(userAcc.healthFactor).toEqual(0);
     expect(userAcc.authority).toStrictEqual(authority.publicKey);
     expect(userAcc.usdcMint).toStrictEqual(usdcMint);
 
