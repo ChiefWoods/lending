@@ -4,7 +4,8 @@
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "idl": "bash scripts/syncIdl.sh"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1"

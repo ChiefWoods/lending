@@ -1,0 +1,1 @@
+cp target/idl/lending.json app/src/idl/lending.json; cp target/types/lending.ts app/src/types/lending.ts
