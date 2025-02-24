@@ -21,6 +21,10 @@ pub mod lending {
         InitBank::init_bank(ctx, args)
     }
 
+    pub fn update_bank(ctx: Context<UpdateBank>, args: UpdateBankArgs) -> Result<()> {
+        UpdateBank::update_bank(ctx, args)
+    }
+
     pub fn init_user(ctx: Context<InitUser>, usdc_mint: Pubkey) -> Result<()> {
         InitUser::init_user(ctx, usdc_mint)
     }
