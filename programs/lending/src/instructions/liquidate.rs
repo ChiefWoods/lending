@@ -64,6 +64,7 @@ pub struct Liquidate<'info> {
     )]
     pub liquidator_collateral_ata: InterfaceAccount<'info, TokenAccount>,
     #[account(
+        mut,
         associated_token::mint = borrowed_mint,
         associated_token::authority = liquidator,
         associated_token::token_program = token_program_a,
@@ -161,9 +162,7 @@ impl Liquidate<'_> {
                 get_total_in_usd(total_usdc_collateral, usdc_price, usdc_mint.decimals)?,
             );
 
-        let health_factor = total_collateral_in_usd
-            .div(total_borrowed_in_usd)
-            .mul(MAX_BASIS_POINTS as f64);
+        let health_factor = total_collateral_in_usd.div(total_borrowed_in_usd);
 
         require!(
             health_factor < collateral_bank.min_health_factor,

@@ -21,7 +21,11 @@ import {
   USDC_MINT,
   USDC_USD_PRICE_FEED_PDA,
 } from "../constants";
-import { getBankAtaPdaAndBump, getUserPdaAndBump } from "../pda";
+import {
+  getBankAtaPdaAndBump,
+  getBankPdaAndBump,
+  getUserPdaAndBump,
+} from "../pda";
 import { getUserAcc } from "../accounts";
 import {
   ACCOUNT_SIZE,
@@ -73,13 +77,16 @@ describe("liquidate", () => {
 
   const initUserUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
   const initUserSolAtaBal = 10 * LAMPORTS_PER_SOL; // 10 SOL
+  const initLiquidatorUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
   const initLiquidatorSolAtaBal = 10 * LAMPORTS_PER_SOL; // 10 SOL
 
   beforeEach(async () => {
-    const [userUsdcAtaData, userSolAtaData, liquidatorSolAtaData] = Array.from(
-      { length: 3 },
-      () => Buffer.alloc(ACCOUNT_SIZE)
-    );
+    const [
+      userUsdcAtaData,
+      userSolAtaData,
+      liquidatorUsdcAtaData,
+      liquidatorSolAtaData,
+    ] = Array.from({ length: 4 }, () => Buffer.alloc(ACCOUNT_SIZE));
 
     AccountLayout.encode(
       {
@@ -113,6 +120,23 @@ describe("liquidate", () => {
         state: 1,
       },
       userSolAtaData
+    );
+
+    AccountLayout.encode(
+      {
+        amount: BigInt(initLiquidatorUsdcAtaBal),
+        closeAuthority: PublicKey.default,
+        closeAuthorityOption: 0,
+        delegate: PublicKey.default,
+        delegateOption: 0,
+        delegatedAmount: 0n,
+        isNative: 1n,
+        isNativeOption: 1,
+        mint: USDC_MINT,
+        owner: liquidatorA.publicKey,
+        state: 1,
+      },
+      liquidatorUsdcAtaData
     );
 
     AccountLayout.encode(
@@ -158,6 +182,15 @@ describe("liquidate", () => {
         info: {
           lamports: initUserSolAtaBal,
           data: userSolAtaData,
+          owner: tokenProgram,
+          executable: false,
+        },
+      },
+      {
+        address: liquidatorUsdcAtaPda,
+        info: {
+          lamports: LAMPORTS_PER_SOL,
+          data: liquidatorUsdcAtaData,
           owner: tokenProgram,
           executable: false,
         },
@@ -227,7 +260,7 @@ describe("liquidate", () => {
       .rpc();
   });
 
-  test.skip("liquidate borrowed SOL position", async () => {
+  test("liquidate borrowed SOL position", async () => {
     await program.methods
       .deposit(new BN(500 * 10 ** 6)) // 500 USDC
       .accounts({
@@ -270,7 +303,27 @@ describe("liquidate", () => {
       USDC_USD_PRICE_FEED_PDA,
     ]);
 
-    // TODO: not tested, need reliable way to alter price feed to achieve large enough difference to trigger liquidation
+    const borrowedMint = NATIVE_MINT;
+    const collateralMint = USDC_MINT;
+    const [bankUsdcPda] = getBankPdaAndBump(collateralMint);
+
+    const minHealthFactor = 10.0; // Crank up minHealthFactor to trigger liquidation
+
+    await program.methods
+      .updateBank({
+        liquidationThreshold: null,
+        liquidationBonus: null,
+        liquidationCloseFactor: null,
+        maxLtv: null,
+        minHealthFactor,
+        interestRate: null,
+      })
+      .accountsPartial({
+        authority: bankUsdc.publicKey,
+        bank: bankUsdcPda,
+      })
+      .signers([bankUsdc])
+      .rpc();
 
     const [userPda] = getUserPdaAndBump(userA.publicKey);
     let userAcc = await getUserAcc(program, userPda);
@@ -284,7 +337,7 @@ describe("liquidate", () => {
       await getAccount(provider.connection, liquidatorSolAtaPda)
     ).amount;
 
-    const [borrowedBankAta] = getBankAtaPdaAndBump(NATIVE_MINT);
+    const [borrowedBankAta] = getBankAtaPdaAndBump(borrowedMint);
     const initBorrowedBankAtaBal = (
       await getAccount(provider.connection, borrowedBankAta)
     ).amount;
@@ -299,8 +352,8 @@ describe("liquidate", () => {
       .accounts({
         liquidator: liquidatorA.publicKey,
         borrower: userA.publicKey,
-        borrowedMint: NATIVE_MINT,
-        collateralMint: USDC_MINT,
+        borrowedMint,
+        collateralMint,
         priceUpdateA: SOL_USD_PRICE_FEED_PDA,
         priceUpdateB: USDC_USD_PRICE_FEED_PDA,
         tokenProgramA: tokenProgram,
@@ -340,6 +393,155 @@ describe("liquidate", () => {
       initLiquidatorSolAtaBal
     );
     expect(Number(postLiquidatorUsdcAtaBal)).toBeGreaterThan(0);
+
+    const postBorrowedBankAtaBal = (
+      await getAccount(provider.connection, borrowedBankAta)
+    ).amount;
+    const postCollateralBankAtaBal = (
+      await getAccount(provider.connection, collateralBankAta)
+    ).amount;
+
+    expect(Number(postBorrowedBankAtaBal)).toBeGreaterThan(
+      initBorrowedBankAtaBal
+    );
+    expect(Number(postCollateralBankAtaBal)).toBeLessThan(
+      initCollateralBankAtaBal
+    );
+  });
+
+  test("liquidate borrowed USDC position", async () => {
+    await program.methods
+      .deposit(new BN(2 * LAMPORTS_PER_SOL)) // 2 SOL
+      .accounts({
+        authority: userA.publicKey,
+        mintA: NATIVE_MINT,
+        mintB: USDC_MINT,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    await program.methods
+      .borrow(new BN(100 * 10 ** 6)) // 100 USDC
+      .accounts({
+        authority: userA.publicKey,
+        mintA: USDC_MINT, // borrowing USDC
+        mintB: NATIVE_MINT, // collateral SOL
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([userA])
+      .rpc();
+
+    await forwardTime(context, 10); // elapsed 10 secs
+
+    await setPriceFeedAccs(context, [
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+    const borrowedMint = USDC_MINT;
+    const collateralMint = NATIVE_MINT;
+    const [bankSolPda] = getBankPdaAndBump(collateralMint);
+
+    const minHealthFactor = 10.0; // Crank up minHealthFactor to trigger liquidation
+
+    await program.methods
+      .updateBank({
+        liquidationThreshold: null,
+        liquidationBonus: null,
+        liquidationCloseFactor: null,
+        maxLtv: null,
+        minHealthFactor,
+        interestRate: null,
+      })
+      .accountsPartial({
+        authority: bankSol.publicKey,
+        bank: bankSolPda,
+      })
+      .signers([bankSol])
+      .rpc();
+
+    const [userPda] = getUserPdaAndBump(userA.publicKey);
+    let userAcc = await getUserAcc(program, userPda);
+
+    const initUserBorrowedUsdc = userAcc.borrowedUsdc;
+    const initUserBorrowedUsdcShares = userAcc.borrowedUsdcShares;
+    const initUserDepositedSol = userAcc.depositedSol;
+    const initUserDepositedSolShares = userAcc.depositedSolShares;
+
+    const initLiquidatorUsdcAtaBal = (
+      await getAccount(provider.connection, liquidatorUsdcAtaPda)
+    ).amount;
+
+    const [borrowedBankAta] = getBankAtaPdaAndBump(borrowedMint);
+    const initBorrowedBankAtaBal = (
+      await getAccount(provider.connection, borrowedBankAta)
+    ).amount;
+
+    const [collateralBankAta] = getBankAtaPdaAndBump(collateralMint);
+    const initCollateralBankAtaBal = (
+      await getAccount(provider.connection, collateralBankAta)
+    ).amount;
+
+    await program.methods
+      .liquidate()
+      .accounts({
+        liquidator: liquidatorA.publicKey,
+        borrower: userA.publicKey,
+        borrowedMint,
+        collateralMint,
+        priceUpdateA: SOL_USD_PRICE_FEED_PDA,
+        priceUpdateB: USDC_USD_PRICE_FEED_PDA,
+        tokenProgramA: tokenProgram,
+        tokenProgramB: tokenProgram,
+      })
+      .signers([liquidatorA])
+      .rpc();
+
+    userAcc = await getUserAcc(program, userPda);
+
+    const postUserBorrowedUsdc = userAcc.borrowedUsdc;
+    const postUserBorrowedUsdcShares = userAcc.borrowedUsdcShares;
+    const postUserDepositedSol = userAcc.depositedSol;
+    const postUserDepositedSolShares = userAcc.depositedSolShares;
+
+    expect(postUserBorrowedUsdc.toNumber()).toBeLessThan(
+      initUserBorrowedUsdc.toNumber()
+    );
+    expect(postUserBorrowedUsdcShares.toNumber()).toBeLessThan(
+      initUserBorrowedUsdcShares.toNumber()
+    );
+    expect(postUserDepositedSol.toNumber()).toBeLessThan(
+      initUserDepositedSol.toNumber()
+    );
+    expect(postUserDepositedSolShares.toNumber()).toBeLessThan(
+      initUserDepositedSolShares.toNumber()
+    );
+
+    const postLiquidatorUsdcAtaBal = (
+      await getAccount(provider.connection, liquidatorUsdcAtaPda)
+    ).amount;
+    const postLiquidatorSolAtaBal = (
+      await getAccount(provider.connection, liquidatorSolAtaPda)
+    ).amount;
+
+    expect(Number(postLiquidatorUsdcAtaBal)).toBeLessThan(
+      initLiquidatorUsdcAtaBal
+    );
+    expect(Number(postLiquidatorSolAtaBal)).toBeGreaterThan(0);
 
     const postBorrowedBankAtaBal = (
       await getAccount(provider.connection, borrowedBankAta)
