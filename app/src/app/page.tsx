@@ -1,101 +1,282 @@
+"use client";
+
+import { BankInfo } from "@/components/BankInfo";
+import { BorrowForm } from "@/components/forms/BorrowForm";
+import { DepositForm } from "@/components/forms/DepositForm";
+import { RepayForm } from "@/components/forms/RepayForm";
+import { WithdrawForm } from "@/components/forms/WithdrawForm";
+import { useBank } from "@/components/providers/BankProvider";
+import { usePyth } from "@/components/providers/PythProvider";
+import { useUser } from "@/components/providers/UserProvider";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MAX_BASIS_POINTS, USDC_MINT } from "@/lib/constants";
+import { ParsedBank, ParsedProgramAccount } from "@/lib/program";
+import { convertFromBpsToPct, truncateAddress, truncateNumber } from "@/lib/utils";
+import { getTokenBal } from "@/lib/api";
+import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import Image from "next/image";
+import { MouseEvent, useEffect, useState } from "react";
+import { toast } from "sonner";
+import useSWR from "swr";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+function getMintImg(mint: string): string {
+  switch (mint) {
+    case USDC_MINT.toBase58():
+      return "/usdc.png";
+    case NATIVE_MINT.toBase58():
+      return "/wrapped_sol.png";
+    default:
+      return "";
+  }
+}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+function getMintName(mint: string): string {
+  switch (mint) {
+    case USDC_MINT.toBase58():
+      return "USDC";
+    case NATIVE_MINT.toBase58():
+      return "Wrapped SOL";
+    default:
+      return "";
+  }
+}
+
+export default function Page() {
+  const { publicKey } = useWallet();
+  const { setVisible } = useWalletModal();
+  const { solPrice, usdcPrice } = usePyth();
+  const { allBanks, isLoading: bankLoading, error: bankError } = useBank();
+  const { user, isLoading: userLoading, error: userError } = useUser();
+  const [selectedBank, setSelectedBank] = useState<ParsedProgramAccount<ParsedBank> | null>(null);
+  const [isBankDialogOpen, setIsBankDialogOpen] = useState<boolean>(false);
+  const { data: tokenBal, isLoading: tokenBalLoading, error: tokenBalError } = useSWR(
+    publicKey && selectedBank ? { publicKey, selectedBank } : null,
+    async ({ publicKey, selectedBank }) => {
+      return await getTokenBal(publicKey, new PublicKey(selectedBank.mint), TOKEN_PROGRAM_ID);
+    })
+  const { data: maxAmount } = useSWR(
+    tokenBal && selectedBank && user && solPrice && usdcPrice ? { tokenBal, selectedBank, user, solPrice, usdcPrice } : null,
+    ({ tokenBal, selectedBank, user, solPrice, usdcPrice }) => {
+      const isUsdcMint = selectedBank.mint === USDC_MINT.toBase58();
+
+      const deposit = tokenBal.amount * (10 ** tokenBal.decimals);
+      const withdraw = isUsdcMint
+        ? user.depositedUsdc
+        : user.depositedSol;
+      const borrow = isUsdcMint
+        ? (user.depositedSol / LAMPORTS_PER_SOL) * solPrice * (selectedBank.maxLtv / MAX_BASIS_POINTS) / usdcPrice * (10 ** 6)
+        : (user.depositedUsdc / (10 ** 6)) * usdcPrice * (selectedBank.maxLtv / MAX_BASIS_POINTS) / solPrice * LAMPORTS_PER_SOL;
+      const repay = isUsdcMint
+        ? user.borrowedUsdc
+        : user.borrowedSol;
+
+      return {
+        deposit,
+        withdraw,
+        borrow,
+        repay,
+      }
+    });
+
+
+  function convertAtomicToUsd(amount: number, mint: string): string {
+    if (!usdcPrice || !solPrice) return "";
+
+    switch (mint) {
+      case USDC_MINT.toBase58():
+        return "$" + truncateNumber(amount / (10 ** 6) * usdcPrice);
+      case NATIVE_MINT.toBase58():
+        return "$" + truncateNumber(amount / (LAMPORTS_PER_SOL) * solPrice);
+      default:
+        return "";
+    }
+  }
+
+  function getTVL(amount: number, mint: string): string | null {
+    if (!solPrice || !usdcPrice) return null;
+
+    switch (mint) {
+      case USDC_MINT.toBase58():
+        return "$" + truncateNumber(amount / (10 ** 6) * usdcPrice);
+      case NATIVE_MINT.toBase58():
+        return "$" + truncateNumber(amount / (LAMPORTS_PER_SOL) * solPrice);
+      default:
+        return null;
+    }
+  }
+
+  function handleOpen(e: MouseEvent, bank: ParsedProgramAccount<ParsedBank>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!publicKey) {
+      setVisible(true);
+    } else {
+      setSelectedBank(bank);
+      setIsBankDialogOpen(true);
+    }
+  }
+
+  function handleOpenChange(open: boolean) {
+    if (!open) {
+      setSelectedBank(null);
+    }
+  }
+
+  useEffect(() => {
+    if (tokenBalError) {
+      toast.error(tokenBalError.message)
+    }
+  }, [tokenBalError])
+
+  if (bankLoading) return <p>Loading...</p>
+  if (bankError) return <p>Error: {bankError.message}</p>
+
+  if (allBanks && !allBanks.length) {
+    return <p>No banks created.</p>
+  };
+
+  return allBanks && (
+    <section className="px-8 flex flex-wrap gap-4">
+      {allBanks.map(bank => {
+        return (
+          <Card key={bank.publicKey} onClick={(e) => handleOpen(e, bank)} className="cursor-pointer">
+            <CardHeader className="flex flex-row items-center gap-2">
+              <Image
+                src={getMintImg(bank.mint)}
+                alt={getMintName(bank.mint)}
+                width={20}
+                height={20}
+                className="rounded-full"
+              />
+              <CardTitle>{getMintName(bank.mint)}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BankInfo
+                text="Total Deposits"
+                value={convertAtomicToUsd(bank.totalDeposits, bank.mint)}
+              />
+              <BankInfo
+                text="Total Deposit Shares"
+                value={bank.totalDepositShares}
+              />
+              <BankInfo
+                text="Total Borrowed"
+                value={convertAtomicToUsd(bank.totalBorrowed, bank.mint)}
+              />
+              <BankInfo
+                text="Total Borrowed Shares"
+                value={bank.totalBorrowedShares}
+              />
+              <BankInfo
+                text="Liquidation Threshold"
+                value={convertFromBpsToPct(bank.liquidationThreshold)}
+              />
+              <BankInfo
+                text="Liquidation Bonus"
+                value={convertFromBpsToPct(bank.liquidationBonus)}
+              />
+              <BankInfo
+                text="Liquidation Close Factor"
+                value={convertFromBpsToPct(bank.liquidationCloseFactor)}
+              />
+              <BankInfo
+                text="Max LTV"
+                value={convertFromBpsToPct(bank.maxLtv)}
+              />
+              <BankInfo
+                text="Min Health Factor"
+                value={bank.minHealthFactor.toFixed(2)}
+              />
+              <BankInfo
+                text="Interest Rate"
+                value={bank.interestRate}
+              />
+              <BankInfo
+                text="Bank Authority"
+                value={truncateAddress(bank.authority)}
+              />
+              <BankInfo
+                text="TVL"
+                value={getTVL(bank.totalDeposits, bank.mint)}
+              />
+            </CardContent>
+          </Card>
+        )
+      })}
+      {selectedBank && (
+        <Dialog key={selectedBank.publicKey} open={isBankDialogOpen} onOpenChange={handleOpenChange}>
+          <DialogTitle className="sr-only">Bank Dialog</DialogTitle>
+          <DialogContent>
+            {userLoading || tokenBalLoading ? (
+              <p>Loading...</p>
+            ) : userError || tokenBalError ? (
+              <p>Error: {userError?.message ?? tokenBalError.message}</p>
+            ) : (
+              <Tabs defaultValue="deposit" className="flex flex-col gap-4">
+                <TabsList className="w-full">
+                  <TabsTrigger value="deposit" className="w-full">Deposit</TabsTrigger>
+                  <TabsTrigger value="withdraw" className="w-full">Withdraw</TabsTrigger>
+                  <TabsTrigger value="borrow" className="w-full">Borrow</TabsTrigger>
+                  <TabsTrigger value="repay" className="w-full">Repay</TabsTrigger>
+                </TabsList>
+                {maxAmount && (
+                  <>
+                    <TabsContent value="deposit">
+                      <DepositForm
+                        bank={selectedBank}
+                        maxAmount={maxAmount.deposit}
+                        mintA={new PublicKey(selectedBank.mint)}
+                        mintB={selectedBank.mint === USDC_MINT.toBase58() ? NATIVE_MINT : USDC_MINT}
+                        tokenProgramA={TOKEN_PROGRAM_ID}
+                        tokenProgramB={TOKEN_PROGRAM_ID}
+                        setIsOpen={setIsBankDialogOpen}
+                      />
+                    </TabsContent>
+                    <TabsContent value="withdraw">
+                      <WithdrawForm
+                        bank={selectedBank}
+                        maxAmount={maxAmount.withdraw}
+                        mintA={new PublicKey(selectedBank.mint)}
+                        mintB={selectedBank.mint === USDC_MINT.toBase58() ? NATIVE_MINT : USDC_MINT}
+                        tokenProgramA={TOKEN_PROGRAM_ID}
+                        tokenProgramB={TOKEN_PROGRAM_ID}
+                        setIsOpen={setIsBankDialogOpen}
+                      />
+                    </TabsContent>
+                    <TabsContent value="borrow">
+                      <BorrowForm
+                        bank={selectedBank}
+                        maxAmount={maxAmount.borrow}
+                        mintA={new PublicKey(selectedBank.mint)}
+                        mintB={selectedBank.mint === USDC_MINT.toBase58() ? NATIVE_MINT : USDC_MINT}
+                        tokenProgramA={TOKEN_PROGRAM_ID}
+                        tokenProgramB={TOKEN_PROGRAM_ID}
+                        setIsOpen={setIsBankDialogOpen}
+                      />
+                    </TabsContent>
+                    <TabsContent value="repay">
+                      <RepayForm
+                        bank={selectedBank}
+                        maxAmount={maxAmount.repay}
+                        mintA={new PublicKey(selectedBank.mint)}
+                        mintB={selectedBank.mint === USDC_MINT.toBase58() ? NATIVE_MINT : USDC_MINT}
+                        tokenProgramA={TOKEN_PROGRAM_ID}
+                        tokenProgramB={TOKEN_PROGRAM_ID}
+                        setIsOpen={setIsBankDialogOpen}
+                      />
+                    </TabsContent>
+                  </>
+                )}
+              </Tabs>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+    </section>
   );
 }

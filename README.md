@@ -4,30 +4,54 @@ Borrow-lending protocol for [Turbin3 Builders Cohort](https://turbin3.com/).
 
 [Source Repository](https://github.com/ChiefWoods/lending)
 
+[Program on Solana Explorer](https://explorer.solana.com/address/DdjBM9scqgaLvE4iskb1cYqqJYFMScRXmi1xnvHPsANt?cluster=devnet)
+
 ## Built With
 
-### Languages
+### Program
+
+#### Languages
 
 - [![Rust](https://img.shields.io/badge/Rust-f75008?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 - [![TypeScript](https://img.shields.io/badge/TypeScript-ffffff?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 
-### Libraries
+#### Libraries
 
+- [@coral-xyz/anchor](https://www.anchor-lang.com/)
 - [@solana/web3.js](https://solana-labs.github.io/solana-web3.js/)
 - [@solana/spl-token](https://solana-labs.github.io/solana-program-library/token/js/)
 - [solana-bankrun](https://kevinheavey.github.io/solana-bankrun/)
 - [anchor-bankrun](https://kevinheavey.github.io/solana-bankrun/)
 - [spl-token-bankrun](https://github.com/metaDAOproject/spl-token-bankrun)
 
-### Crates
+#### Crates
 
 - [anchor-lang](https://docs.rs/anchor-lang/latest/anchor_lang/)
 - [anchor-spl](https://docs.rs/anchor-spl/latest/anchor_spl/)
 - [pyth-solana-receiver-sdk](https://docs.rs/pyth-solana-receiver-sdk/latest/pyth_solana_receiver_sdk/)
 
-### Test Runner
+#### Test Runner
 
 - [![Bun](https://img.shields.io/badge/Bun-000?style=for-the-badge&logo=bun)](https://bun.sh/)
+
+### App
+
+#### Languages
+
+- [![TypeScript](https://img.shields.io/badge/TypeScript-ffffff?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+- [![React](https://img.shields.io/badge/React-23272f?style=for-the-badge&logo=react)](https://react.dev/)
+
+#### Libraries
+
+- [@coral-xyz/anchor](https://www.anchor-lang.com/)
+- [@solana/web3.js](https://solana-labs.github.io/solana-web3.js/)
+- [@solana/spl-token](https://solana-labs.github.io/solana-program-library/token/js/)
+- [@solana/wallet-adapter-react](https://github.com/anza-xyz/wallet-adapter)
+- [@pythnetwork/hermes-client](https://pyth.network/)
+- [@pythnetwork/price-service-sdk](https://pyth.network/)
+- [Next.js](https://nextjs.org/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Zod](https://zod.dev/)
 
 ## Getting Started
 
@@ -67,6 +91,12 @@ anchor keys sync
 anchor build
 ```
 
+5. In `/app`, configure `.env` files
+
+```bash
+cp .env.example .env.development; cp .env.example .env.production
+```
+
 #### Testing
 
 Run all `.test.ts` files under `/tests`.
@@ -97,6 +127,30 @@ anchor deploy
 anchor idl init -f target/idl/lending.json <PROGRAM_ID>
 ```
 
+#### Development
+
+Start development server.
+
+```bash
+bun run dev
+```
+
+#### Build
+
+Create production build.
+
+```bash
+bun run build
+```
+
+#### Preview
+
+Start preview server.
+
+```bash
+bun run start
+```
+
 ## Issues
 
 View the [open issues](https://github.com/ChiefWoods/lending/issues) for a full list of proposed features and known bugs.
@@ -106,6 +160,10 @@ View the [open issues](https://github.com/ChiefWoods/lending/issues) for a full 
 ### Resources
 
 - [Shields.io](https://shields.io/)
+
+### Hosting
+
+- [Vercel](https://vercel.com/)
 
 ## Contact
 
