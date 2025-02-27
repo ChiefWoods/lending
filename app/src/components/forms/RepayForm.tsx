@@ -13,7 +13,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { buildTx, getTransactionLink } from "@/lib/solana-helpers";
 import { getRepayIx, ParsedBank, ParsedProgramAccount } from "@/lib/program";
 import { PublicKey } from "@solana/web3.js";
-import { serializeAndSendVersionedTx } from "@/lib/api";
+import { sendTransaction } from "@/lib/api";
 import { useBank } from "../providers/BankProvider";
 import { useUser } from "../providers/UserProvider";
 import { usePyth } from "../providers/PythProvider";
@@ -81,7 +81,7 @@ export function RepayForm({
 
         tx = await signTransaction(tx);
 
-        return await serializeAndSendVersionedTx(tx);
+        return await sendTransaction(tx);
       },
       {
         loading: "Repaying...",

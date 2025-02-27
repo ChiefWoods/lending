@@ -14,8 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MAX_BASIS_POINTS, USDC_MINT } from "@/lib/constants";
 import { ParsedBank, ParsedProgramAccount } from "@/lib/program";
 import { convertFromBpsToPct, truncateAddress, truncateNumber } from "@/lib/utils";
-import { getTokenBal } from "@/lib/api";
-import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getTokenAccountBalance } from "@/lib/api";
+import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
@@ -54,17 +54,24 @@ export default function Page() {
   const { user, isLoading: userLoading, error: userError } = useUser();
   const [selectedBank, setSelectedBank] = useState<ParsedProgramAccount<ParsedBank> | null>(null);
   const [isBankDialogOpen, setIsBankDialogOpen] = useState<boolean>(false);
-  const { data: tokenBal, isLoading: tokenBalLoading, error: tokenBalError } = useSWR(
+  const { data: ataBal, isLoading: tokenBalLoading, error: tokenBalError } = useSWR(
     publicKey && selectedBank ? { publicKey, selectedBank } : null,
     async ({ publicKey, selectedBank }) => {
-      return await getTokenBal(publicKey, new PublicKey(selectedBank.mint), TOKEN_PROGRAM_ID);
+      const ataPubkey = getAssociatedTokenAddressSync(
+        new PublicKey(selectedBank.mint),
+        publicKey,
+        false,
+        TOKEN_PROGRAM_ID
+      );
+
+      return await getTokenAccountBalance(ataPubkey);
     })
   const { data: maxAmount } = useSWR(
-    tokenBal && selectedBank && user && solPrice && usdcPrice ? { tokenBal, selectedBank, user, solPrice, usdcPrice } : null,
+    ataBal && selectedBank && user && solPrice && usdcPrice ? { tokenBal: ataBal, selectedBank, user, solPrice, usdcPrice } : null,
     ({ tokenBal, selectedBank, user, solPrice, usdcPrice }) => {
       const isUsdcMint = selectedBank.mint === USDC_MINT.toBase58();
 
-      const deposit = tokenBal.amount * (10 ** tokenBal.decimals);
+      const deposit = Number(tokenBal.amount);
       const withdraw = isUsdcMint
         ? user.depositedUsdc
         : user.depositedSol;

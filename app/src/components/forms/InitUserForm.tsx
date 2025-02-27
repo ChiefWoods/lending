@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { getInitUserIx } from "@/lib/program";
 import { USDC_MINT } from "@/lib/constants";
 import { buildTx, getTransactionLink } from "@/lib/solana-helpers";
-import { serializeAndSendVersionedTx } from "@/lib/api";
+import { sendTransaction } from "@/lib/api";
 import { Form } from "../ui/form";
 import { useForm } from "react-hook-form";
 import { useUser } from "../providers/UserProvider";
@@ -44,7 +44,7 @@ export function InitUserForm() {
 
           tx = await signTransaction(tx);
 
-          return await serializeAndSendVersionedTx(tx);
+          return await sendTransaction(tx);
         },
         {
           loading: "Creating user account...",

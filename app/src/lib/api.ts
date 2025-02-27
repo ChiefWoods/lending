@@ -1,13 +1,24 @@
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token"
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js"
+import { PublicKey, VersionedTransaction } from "@solana/web3.js"
 
-export async function serializeAndSendTx(
-  tx: Transaction,
-): Promise<string> {
-  const res = await fetch('/api/transaction', {
+const headers = {
+  'Content-Type': 'application/json',
+}
+
+export async function sendTransaction(tx: VersionedTransaction): Promise<string> {
+  const res = await fetch('/api/rpc', {
     method: 'POST',
+    headers,
     body: JSON.stringify({
-      tx: tx.serialize().toString('base64'),
+      jsonrpc: '2.0',
+      id: self.crypto.randomUUID(),
+      method: 'sendTransaction',
+      params: [
+        Buffer.from(tx.serialize()).toString('base64'),
+        {
+          encoding: 'base64',
+          preflightCommitment: 'confirmed',
+        },
+      ],
     }),
   });
 
@@ -17,18 +28,25 @@ export async function serializeAndSendTx(
     throw new Error(data.error);
   }
 
-  return data.signature;
+  return data.result;
 }
 
-export async function serializeAndSendVersionedTx(
-  tx: VersionedTransaction,
-): Promise<string> {
-  const res = await fetch('/api/transaction', {
+export async function getTokenAccountBalance(pubkey: PublicKey): Promise<{
+  amount: string,
+  decimals: number,
+  uiAmount: number | null,
+  uiAmountString: string,
+}> {
+  const res = await fetch('/api/rpc', {
     method: 'POST',
+    headers,
     body: JSON.stringify({
-      tx: Buffer.from(tx.serialize()).toString('base64'),
+      jsonrpc: '2.0',
+      id: self.crypto.randomUUID(),
+      method: 'getTokenAccountBalance',
+      params: [pubkey.toBase58()],
     }),
-  });
+  })
 
   const data = await res.json();
 
@@ -36,21 +54,5 @@ export async function serializeAndSendVersionedTx(
     throw new Error(data.error);
   }
 
-  return data.signature;
-}
-
-export async function getTokenBal(authority: PublicKey, mint: PublicKey, tokenProgram: PublicKey = TOKEN_PROGRAM_ID): Promise<{ amount: number, decimals: number}> {
-  const ataAddress = getAssociatedTokenAddressSync(mint, authority, false, tokenProgram);
-
-  const res = await fetch(`/api/token-bal?pubkey=${ataAddress.toBase58()}`);
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error);
-  }
-
-  return {
-    amount: data.amount,
-    decimals: data.decimals,
-  }
+  return data.result.value;
 }
