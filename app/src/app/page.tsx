@@ -207,7 +207,7 @@ export default function Page() {
               />
               <BankInfo
                 text="Interest Rate"
-                value={bank.interestRate}
+                value={convertFromBpsToPct(bank.interestRate)}
               />
               <BankInfo
                 text="Bank Authority"
