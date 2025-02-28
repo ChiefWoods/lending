@@ -2,15 +2,19 @@ import { Cluster, clusterApiUrl, Connection, PublicKey } from "@solana/web3.js";
 
 export const MAX_BASIS_POINTS = 10000;
 
-export const cluster =
-  (process.env.NEXT_PUBLIC_SOLANA_RPC_CLUSTER as Cluster) ?? 'devnet';
-  
-// uses private RPC for server-side actions, and public devnet for client-side
+export const cluster: Cluster | "localnet" =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_CLUSTER === "localnet"
+    ? "localnet"
+    : (process.env.NEXT_PUBLIC_SOLANA_RPC_CLUSTER ?? "devnet") as Cluster;
+
 export const connection = new Connection(
-  process.env.SOLANA_RPC_URL ?? clusterApiUrl('devnet'), { commitment: 'confirmed' }
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl('devnet'),
+  { commitment: 'confirmed' }
 );
 
-export const LENDING_LAT = (await connection.getAddressLookupTable(new PublicKey(process.env.NEXT_PUBLIC_LENDING_LAT!))).value ?? null;
+export const LENDING_LAT = process.env.NEXT_PUBLIC_LENDING_LAT
+  ? (await connection.getAddressLookupTable(new PublicKey(process.env.NEXT_PUBLIC_LENDING_LAT))).value
+  : null;
 
 export const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
 

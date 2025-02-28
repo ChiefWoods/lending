@@ -65,13 +65,15 @@ export default function Page() {
       );
 
       return await getTokenAccountBalance(ataPubkey);
-    })
+    }
+  )
+
   const { data: maxAmount } = useSWR(
-    ataBal && selectedBank && user && solPrice && usdcPrice ? { tokenBal: ataBal, selectedBank, user, solPrice, usdcPrice } : null,
-    ({ tokenBal, selectedBank, user, solPrice, usdcPrice }) => {
+    ataBal && selectedBank && user && solPrice && usdcPrice ? { ataBal, selectedBank, user, solPrice, usdcPrice } : null,
+    ({ ataBal, selectedBank, user, solPrice, usdcPrice }) => {
       const isUsdcMint = selectedBank.mint === USDC_MINT.toBase58();
 
-      const deposit = Number(tokenBal.amount);
+      const deposit = Number(ataBal.amount);
       const withdraw = isUsdcMint
         ? user.depositedUsdc
         : user.depositedSol;
@@ -87,9 +89,10 @@ export default function Page() {
         withdraw,
         borrow,
         repay,
+        decimals: ataBal.decimals,
       }
-    });
-
+    }
+  );
 
   function convertAtomicToUsd(amount: number, mint: string): string {
     if (!usdcPrice || !solPrice) return "";
@@ -122,6 +125,8 @@ export default function Page() {
     e.stopPropagation();
     if (!publicKey) {
       setVisible(true);
+    } else if (!user) {
+      toast.info("Create a user account to start taking actions.");
     } else {
       setSelectedBank(bank);
       setIsBankDialogOpen(true);
@@ -140,16 +145,17 @@ export default function Page() {
     }
   }, [tokenBalError])
 
-  if (bankLoading) return <p>Loading...</p>
   if (bankError) return <p>Error: {bankError.message}</p>
 
   if (allBanks && !allBanks.length) {
     return <p>No banks created.</p>
   };
 
-  return allBanks && (
+  return (
     <section className="px-8 flex flex-wrap gap-4">
-      {allBanks.map(bank => {
+      {bankLoading && <p>Loading...</p>}
+      {allBanks && !allBanks.length && <p>No banks created.</p>}
+      {allBanks && allBanks.map(bank => {
         return (
           <Card key={bank.publicKey} onClick={(e) => handleOpen(e, bank)} className="cursor-pointer">
             <CardHeader className="flex flex-row items-center gap-2">
