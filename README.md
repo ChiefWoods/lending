@@ -2,9 +2,11 @@
 
 Borrow-lending protocol for [Turbin3 Builders Cohort](https://turbin3.com/).
 
-[Source Repository](https://github.com/ChiefWoods/lending)
+[Live Website](https://lending-app-gilt.vercel.app/)
 
 [Program on Solana Explorer](https://explorer.solana.com/address/DdjBM9scqgaLvE4iskb1cYqqJYFMScRXmi1xnvHPsANt?cluster=devnet)
+
+[Source Repository](https://github.com/ChiefWoods/lending)
 
 ## How to Use
 
@@ -52,14 +54,13 @@ Have a user account created.
 
 ## Built With
 
-### Program
-
-#### Languages
+### Languages
 
 - [![Rust](https://img.shields.io/badge/Rust-f75008?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 - [![TypeScript](https://img.shields.io/badge/TypeScript-ffffff?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+- [![React](https://img.shields.io/badge/React-23272f?style=for-the-badge&logo=react)](https://react.dev/)
 
-#### Libraries
+### Libraries
 
 - [@coral-xyz/anchor](https://www.anchor-lang.com/)
 - [@solana/web3.js](https://solana-labs.github.io/solana-web3.js/)
@@ -67,35 +68,22 @@ Have a user account created.
 - [solana-bankrun](https://kevinheavey.github.io/solana-bankrun/)
 - [anchor-bankrun](https://kevinheavey.github.io/solana-bankrun/)
 - [spl-token-bankrun](https://github.com/metaDAOproject/spl-token-bankrun)
-
-#### Crates
-
-- [anchor-lang](https://docs.rs/anchor-lang/latest/anchor_lang/)
-- [anchor-spl](https://docs.rs/anchor-spl/latest/anchor_spl/)
-- [pyth-solana-receiver-sdk](https://docs.rs/pyth-solana-receiver-sdk/latest/pyth_solana_receiver_sdk/)
-
-#### Test Runner
-
-- [![Bun](https://img.shields.io/badge/Bun-000?style=for-the-badge&logo=bun)](https://bun.sh/)
-
-### App
-
-#### Languages
-
-- [![TypeScript](https://img.shields.io/badge/TypeScript-ffffff?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-- [![React](https://img.shields.io/badge/React-23272f?style=for-the-badge&logo=react)](https://react.dev/)
-
-#### Libraries
-
-- [@coral-xyz/anchor](https://www.anchor-lang.com/)
-- [@solana/web3.js](https://solana-labs.github.io/solana-web3.js/)
-- [@solana/spl-token](https://solana-labs.github.io/solana-program-library/token/js/)
 - [@solana/wallet-adapter-react](https://github.com/anza-xyz/wallet-adapter)
 - [@pythnetwork/hermes-client](https://pyth.network/)
 - [@pythnetwork/price-service-sdk](https://pyth.network/)
 - [Next.js](https://nextjs.org/)
 - [shadcn/ui](https://ui.shadcn.com/)
 - [Zod](https://zod.dev/)
+
+### Crates
+
+- [anchor-lang](https://docs.rs/anchor-lang/latest/anchor_lang/)
+- [anchor-spl](https://docs.rs/anchor-spl/latest/anchor_spl/)
+- [pyth-solana-receiver-sdk](https://docs.rs/pyth-solana-receiver-sdk/latest/pyth_solana_receiver_sdk/)
+
+### Test Runner
+
+- [![Bun](https://img.shields.io/badge/Bun-000?style=for-the-badge&logo=bun)](https://bun.sh/)
 
 ## Getting Started
 
