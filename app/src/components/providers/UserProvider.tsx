@@ -1,17 +1,19 @@
 "use client";
 
-import { getUserPda } from "@/lib/pda";
+import { fetchAllUsers, fetchUser } from "@/lib/accounts";
 import { ParsedProgramAccount, ParsedUser } from "@/lib/program";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, ReactNode, useContext } from "react";
 import useSWR, { KeyedMutator } from "swr";
+import useSWRMutation, { TriggerWithoutArgs } from 'swr/mutation'
 
 interface UserContextType {
-  user: ParsedProgramAccount<ParsedUser> | null;
+  user: ParsedProgramAccount<ParsedUser> | undefined;
   allUsers: ParsedProgramAccount<ParsedUser>[] | undefined;
   isLoading: boolean;
   error: Error | undefined;
-  mutate: KeyedMutator<ParsedProgramAccount<ParsedUser>[]>
+  trigger: TriggerWithoutArgs;
+  mutate: KeyedMutator<ParsedProgramAccount<ParsedUser>>
 }
 
 const UserContext = createContext<UserContextType>({} as UserContextType);
@@ -26,40 +28,25 @@ export function UserProvider({
   children: ReactNode,
 }) {
   const { publicKey } = useWallet();
-  const [user, setUser] = useState<ParsedProgramAccount<ParsedUser> | null>(null);
-
-  async function fetchAllUsers() {
-    const res = await fetch("/api/accounts/users");
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error);
-    }
-
-    return data.users as ParsedProgramAccount<ParsedUser>[];
-  }
-
-  const { data: allUsers, isLoading, error, mutate } = useSWR("/api/accounts/users", async () => {
-    const allUsers = await fetchAllUsers();
-    return allUsers;
+  const { data: allUsers, error: allUsersError, trigger } = useSWRMutation("/api/accounts/users", async () => {
+    return await fetchAllUsers();
   });
 
-  useEffect(() => {
-    if (publicKey && allUsers) {
-      const userPda = getUserPda(publicKey);
-      const user = allUsers?.find(u => u.publicKey === userPda.toBase58());
-
-      setUser(user ?? null)
+  const { data: user, isLoading: userLoading, error: userError, mutate } = useSWR(
+    publicKey ? { url: "/api/accounts/users", publicKey } : null,
+    async ({ publicKey }) => {
+      return await fetchUser(publicKey.toBase58());
     }
-  }, [publicKey, allUsers])
+  );
 
   return (
     <UserContext.Provider
       value={{
         user,
         allUsers,
-        isLoading,
-        error,
+        isLoading: userLoading,
+        error: allUsersError || userError,
+        trigger,
         mutate,
       }}
     >

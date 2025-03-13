@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchAllBanks } from "@/lib/accounts";
 import { ParsedBank, ParsedProgramAccount } from "@/lib/program";
 import { createContext, ReactNode, useContext } from "react";
 import useSWR, { KeyedMutator } from "swr";
@@ -22,21 +23,12 @@ export function BankProvider({
 }: {
   children: ReactNode,
 }) {
-  async function fetchAllBanks() {
-    const res = await fetch("/api/accounts/banks");
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error);
+  const { data: allBanks, isLoading, error, mutate } = useSWR(
+    "/api/accounts/banks",
+    async () => {
+      return await fetchAllBanks();
     }
-
-    return data.banks as ParsedProgramAccount<ParsedBank>[];
-  }
-
-  const { data: allBanks, isLoading, error, mutate } = useSWR("/api/accounts/banks", async () => {
-    const allBanks = await fetchAllBanks();
-    return allBanks;
-  });
+  );
 
   return (
     <BankContext.Provider

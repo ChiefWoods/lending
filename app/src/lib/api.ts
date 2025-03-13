@@ -1,13 +1,8 @@
 import { PublicKey, VersionedTransaction } from "@solana/web3.js"
 
-const headers = {
-  'Content-Type': 'application/json',
-}
-
 export async function sendTransaction(tx: VersionedTransaction): Promise<string> {
   const res = await fetch('/api/rpc', {
     method: 'POST',
-    headers,
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: self.crypto.randomUUID(),
@@ -39,7 +34,6 @@ export async function getTokenAccountBalance(pubkey: PublicKey): Promise<{
 }> {
   const res = await fetch('/api/rpc', {
     method: 'POST',
-    headers,
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: self.crypto.randomUUID(),
