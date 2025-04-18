@@ -8,50 +8,6 @@ Borrow-lending protocol for [Turbin3 Builders Cohort](https://turbin3.com/).
 
 [Source Repository](https://github.com/ChiefWoods/lending)
 
-## How to Use
-
-### Prerequisites
-
-Have a user account created.
-
-![User Account](images/create_user.png)
-
-### Bank Action
-
-1. Pick a bank
-
-![Choose Bank](images/choose_bank.png)
-
-2. Choose an action and enter amount in atomic units
-
-![Choose Action](images/choose_action_and_amount.png)
-
-3. Sign transaction
-
-![Sign Transaction](images/sign_transaction.png)
-
-4. Success
-
-![Success toast](images/success_toast.png)
-
-## Design Choices
-
-- protocol only supports SOL-USDC at the moment, collateral can be increased by depositing to the other pair, eg: deposit to SOL to borrow USDC
-- health factors are represented differently by each bank
-- Pyth prices are fetched on client-side
-- Solana RPC URL is exposed on both client and server side, but can easily be configured to handle whitelisted domains
-
-## Planned Changes
-
-- improve UI account state changes after confirming a transaction 
-- improve UI when taking actions (balance in UI amount, different state when account balance is insufficient)
-- set global health factor through a single config account
-- add liquidate page
-- add thorough support for Wrapped SOL (both normal and Extensions)
-- replace hardcoded SOL-uSDC pair with dynamic base and quote tokens
-- improve collateral and health factor calculation by taking account of all tokens in a pool
-- fetch Pyth prices on server-side to mask Hermes RPC URL
-
 ## Built With
 
 ### Languages
@@ -89,12 +45,12 @@ Have a user account created.
 
 ### Prerequisites
 
-1. Update your Solana CLI, Bun toolkit and avm to the latest version
+1. Update your Solana CLI, Bun toolkit and avm
 
 ```bash
-solana-install update
 bun upgrade
-avm update
+agave-install init 2.1.0
+avm use 0.31.0
 ```
 
 ### Setup
