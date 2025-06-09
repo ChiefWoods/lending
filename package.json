@@ -11,7 +11,7 @@
     "idl": "bash scripts/syncIdl.sh"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.0"
+    "@coral-xyz/anchor": "^0.31.1"
   },
   "devDependencies": {
     "@solana/spl-token": "^0.4.12",

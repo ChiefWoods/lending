@@ -48,6 +48,7 @@ Borrow-lending protocol for [Turbin3 Builders Cohort](https://turbin3.com/).
 1. Update your Solana CLI, Bun toolkit and avm
 
 ```bash
+agave-install init 2.1.20
 bun upgrade
 agave-install init 2.1.0
 avm use 0.31.0
