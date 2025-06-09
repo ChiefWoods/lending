@@ -1,6 +1,6 @@
 # Lending
 
-Borrow-lending protocol for [Turbin3 Builders Cohort](https://turbin3.com/).
+Borrow-lending protocol for [Solana Development Bootcamp](https://github.com/solana-developers/developer-bootcamp-2024).
 
 [Live Website](https://lending-app-gilt.vercel.app/)
 
@@ -50,8 +50,7 @@ Borrow-lending protocol for [Turbin3 Builders Cohort](https://turbin3.com/).
 ```bash
 agave-install init 2.1.20
 bun upgrade
-agave-install init 2.1.0
-avm use 0.31.0
+avm init 0.31.1
 ```
 
 ### Setup
