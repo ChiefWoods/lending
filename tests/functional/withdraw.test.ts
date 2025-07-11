@@ -1,26 +1,21 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { ProgramTestContext } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
-import { AnchorError, BN, Program } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import {
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-} from "@solana/web3.js";
-import { getBankrunSetup, mintToBankSol, mintToBankUsdc } from "../setup";
+  expectAnchorError,
+  fundedSystemAccountInfo,
+  getSetup,
+  mintToBankSol,
+  mintToBankUsdc,
+} from "../setup";
 import {
   SOL_USD_PRICE_FEED_PDA,
   USDC_MINT,
   USDC_USD_PRICE_FEED_PDA,
 } from "../constants";
-import {
-  getBankAtaPdaAndBump,
-  getBankPdaAndBump,
-  getUserPdaAndBump,
-} from "../pda";
-import { getBankAcc, getUserAcc } from "../accounts";
+import { getBankAtaPda, getBankPda, getUserPda } from "../pda";
+import { fetchBankAcc, fetchUserAcc } from "../accounts";
 import {
   ACCOUNT_SIZE,
   AccountLayout,
@@ -29,11 +24,13 @@ import {
   NATIVE_MINT,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
 
 describe("withdraw", () => {
-  let { context, provider, program } = {} as {
-    context: ProgramTestContext;
-    provider: BankrunProvider;
+  let { litesvm, provider, program } = {} as {
+    litesvm: LiteSVM;
+    provider: LiteSVMProvider;
     program: Program<Lending>;
   };
 
@@ -97,21 +94,16 @@ describe("withdraw", () => {
       userSolAtaData,
     );
 
-    ({ context, provider, program } = await getBankrunSetup([
+    ({ litesvm, provider, program } = await getSetup([
       ...[bankUsdc, bankSol, userA].map((kp) => {
         return {
-          address: kp.publicKey,
-          info: {
-            lamports: LAMPORTS_PER_SOL * 5,
-            data: Buffer.alloc(0),
-            owner: SystemProgram.programId,
-            executable: false,
-          },
+          pubkey: kp.publicKey,
+          account: fundedSystemAccountInfo(),
         };
       }),
       {
-        address: userUsdcAtaPda,
-        info: {
+        pubkey: userUsdcAtaPda,
+        account: {
           lamports: LAMPORTS_PER_SOL,
           data: userUsdcAtaData,
           owner: tokenProgram,
@@ -119,8 +111,8 @@ describe("withdraw", () => {
         },
       },
       {
-        address: userSolAtaPda,
-        info: {
+        pubkey: userSolAtaPda,
+        account: {
           lamports: initUserSolAtaBal,
           data: userSolAtaData,
           owner: tokenProgram,
@@ -153,7 +145,7 @@ describe("withdraw", () => {
       .signers([bankUsdc])
       .rpc();
 
-    await mintToBankUsdc(context, 1000 * 10 ** 6); // 1000 USDC
+    await mintToBankUsdc(litesvm, 1000 * 10 ** 6); // 1000 USDC
 
     await program.methods
       .initBank({
@@ -172,7 +164,7 @@ describe("withdraw", () => {
       .signers([bankSol])
       .rpc();
 
-    await mintToBankSol(context, 100 * LAMPORTS_PER_SOL); // 100 SOL
+    await mintToBankSol(litesvm, 100 * LAMPORTS_PER_SOL); // 100 SOL
 
     await program.methods
       .initUser(USDC_MINT)
@@ -200,20 +192,20 @@ describe("withdraw", () => {
       .signers([userA])
       .rpc();
 
-    const [bankUsdcPda] = getBankPdaAndBump(mint);
-    let bankUsdcAcc = await getBankAcc(program, bankUsdcPda);
+    const bankUsdcPda = getBankPda(mint);
+    let bankUsdcAcc = await fetchBankAcc(program, bankUsdcPda);
 
     const initBankUsdcTotalDeposits = bankUsdcAcc.totalDeposits.toNumber();
     const initBankUsdcTotalDepositShares =
       bankUsdcAcc.totalDepositShares.toNumber();
 
-    const [userPda] = getUserPdaAndBump(userA.publicKey);
-    let userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(userA.publicKey);
+    let userAcc = await fetchUserAcc(program, userPda);
 
     const initUserDepositedUsdc = userAcc.depositedUsdc.toNumber();
     const initUserDepositedUsdcShares = userAcc.depositedUsdcShares.toNumber();
 
-    const [bankUsdcAtaPda] = getBankAtaPdaAndBump(mint);
+    const bankUsdcAtaPda = getBankAtaPda(mint);
     const initBankUsdcAtaAccBal = (
       await getAccount(provider.connection, bankUsdcAtaPda)
     ).amount;
@@ -234,7 +226,7 @@ describe("withdraw", () => {
       .signers([userA])
       .rpc();
 
-    bankUsdcAcc = await getBankAcc(program, bankUsdcPda);
+    bankUsdcAcc = await fetchBankAcc(program, bankUsdcPda);
 
     const postBankUsdcTotalDeposits = bankUsdcAcc.totalDeposits.toNumber();
     const postBankUsdcTotalDepositShares =
@@ -247,7 +239,7 @@ describe("withdraw", () => {
       initBankUsdcTotalDepositShares - amount.toNumber(),
     );
 
-    userAcc = await getUserAcc(program, userPda);
+    userAcc = await fetchUserAcc(program, userPda);
 
     const postUserDepositedUsdc = userAcc.depositedUsdc.toNumber();
     const postUserDepositedUsdcShares = userAcc.depositedUsdcShares.toNumber();
@@ -259,7 +251,7 @@ describe("withdraw", () => {
       initUserDepositedUsdcShares - amount.toNumber(),
     );
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
 
     expect(bankUsdcAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
       unixTimestamp,
@@ -291,17 +283,17 @@ describe("withdraw", () => {
       .signers([userA])
       .rpc();
 
-    const [bankSolPda] = getBankPdaAndBump(mint);
-    let bankSolAcc = await getBankAcc(program, bankSolPda);
+    const bankSolPda = getBankPda(mint);
+    let bankSolAcc = await fetchBankAcc(program, bankSolPda);
 
     const initBankSolTotalDeposits = bankSolAcc.totalDeposits.toNumber();
     const initBankSolTotalDepositShares =
       bankSolAcc.totalDepositShares.toNumber();
 
-    const [userPda] = getUserPdaAndBump(userA.publicKey);
-    let userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(userA.publicKey);
+    let userAcc = await fetchUserAcc(program, userPda);
 
-    const [bankSolAtaPda] = getBankAtaPdaAndBump(mint);
+    const bankSolAtaPda = getBankAtaPda(mint);
     const initBankSolAtaAccBal = (
       await getAccount(provider.connection, bankSolAtaPda)
     ).amount;
@@ -325,7 +317,7 @@ describe("withdraw", () => {
       .signers([userA])
       .rpc();
 
-    bankSolAcc = await getBankAcc(program, bankSolPda);
+    bankSolAcc = await fetchBankAcc(program, bankSolPda);
 
     expect(bankSolAcc.totalDeposits.toNumber()).toBeLessThan(
       initBankSolTotalDeposits,
@@ -334,7 +326,7 @@ describe("withdraw", () => {
       initBankSolTotalDepositShares,
     );
 
-    userAcc = await getUserAcc(program, userPda);
+    userAcc = await fetchUserAcc(program, userPda);
 
     const postUserDepositedSol = userAcc.depositedSol.toNumber();
     const postUserDepositedSolShares = userAcc.depositedSolShares.toNumber();
@@ -346,7 +338,7 @@ describe("withdraw", () => {
       initUserDepositedSolShares - amount.toNumber(),
     );
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
 
     expect(bankSolAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
       unixTimestamp,
@@ -391,11 +383,7 @@ describe("withdraw", () => {
         .signers([userA])
         .rpc();
     } catch (err) {
-      expect(err).toBeInstanceOf(AnchorError);
-
-      const { error } = err as AnchorError;
-      expect(error.errorCode.code).toEqual("InvalidAmount");
-      expect(error.errorCode.number).toEqual(6000);
+      expectAnchorError(err, "InvalidAmount");
     }
   });
 
@@ -431,11 +419,7 @@ describe("withdraw", () => {
         .signers([userA])
         .rpc();
     } catch (err) {
-      expect(err).toBeInstanceOf(AnchorError);
-
-      const { error } = err as AnchorError;
-      expect(error.errorCode.code).toEqual("InsufficientFunds");
-      expect(error.errorCode.number).toEqual(6001);
+      expectAnchorError(err, "InsufficientFunds");
     }
   });
 });

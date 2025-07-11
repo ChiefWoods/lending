@@ -1,32 +1,21 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { Clock, ProgramTestContext } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
 import { BN, Program } from "@coral-xyz/anchor";
-import {
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-} from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import {
   forwardTime,
-  getBankrunSetup,
+  fundedSystemAccountInfo,
+  getSetup,
   mintToBankSol,
   mintToBankUsdc,
-  setPriceFeedAccs,
 } from "../setup";
 import {
   SOL_USD_PRICE_FEED_PDA,
   USDC_MINT,
   USDC_USD_PRICE_FEED_PDA,
 } from "../constants";
-import {
-  getBankAtaPdaAndBump,
-  getBankPdaAndBump,
-  getUserPdaAndBump,
-} from "../pda";
-import { getUserAcc } from "../accounts";
+import { getBankAtaPda, getBankPda, getUserPda } from "../pda";
+import { fetchUserAcc } from "../accounts";
 import {
   ACCOUNT_SIZE,
   AccountLayout,
@@ -35,11 +24,13 @@ import {
   NATIVE_MINT,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
 
 describe("liquidate", () => {
-  let { context, provider, program } = {} as {
-    context: ProgramTestContext;
-    provider: BankrunProvider;
+  let { litesvm, provider, program } = {} as {
+    litesvm: LiteSVM;
+    provider: LiteSVMProvider;
     program: Program<Lending>;
   };
 
@@ -156,21 +147,16 @@ describe("liquidate", () => {
       liquidatorSolAtaData,
     );
 
-    ({ context, provider, program } = await getBankrunSetup([
+    ({ litesvm, provider, program } = await getSetup([
       ...[bankUsdc, bankSol, userA, liquidatorA].map((kp) => {
         return {
-          address: kp.publicKey,
-          info: {
-            lamports: LAMPORTS_PER_SOL * 5,
-            data: Buffer.alloc(0),
-            owner: SystemProgram.programId,
-            executable: false,
-          },
+          pubkey: kp.publicKey,
+          account: fundedSystemAccountInfo(),
         };
       }),
       {
-        address: userUsdcAtaPda,
-        info: {
+        pubkey: userUsdcAtaPda,
+        account: {
           lamports: LAMPORTS_PER_SOL,
           data: userUsdcAtaData,
           owner: tokenProgram,
@@ -178,8 +164,8 @@ describe("liquidate", () => {
         },
       },
       {
-        address: userSolAtaPda,
-        info: {
+        pubkey: userSolAtaPda,
+        account: {
           lamports: initUserSolAtaBal,
           data: userSolAtaData,
           owner: tokenProgram,
@@ -187,8 +173,8 @@ describe("liquidate", () => {
         },
       },
       {
-        address: liquidatorUsdcAtaPda,
-        info: {
+        pubkey: liquidatorUsdcAtaPda,
+        account: {
           lamports: LAMPORTS_PER_SOL,
           data: liquidatorUsdcAtaData,
           owner: tokenProgram,
@@ -196,8 +182,8 @@ describe("liquidate", () => {
         },
       },
       {
-        address: liquidatorSolAtaPda,
-        info: {
+        pubkey: liquidatorSolAtaPda,
+        account: {
           lamports: initLiquidatorSolAtaBal,
           data: liquidatorSolAtaData,
           owner: tokenProgram,
@@ -230,7 +216,7 @@ describe("liquidate", () => {
       .signers([bankUsdc])
       .rpc();
 
-    await mintToBankUsdc(context, 1000 * 10 ** 6); // 1000 USDC
+    await mintToBankUsdc(litesvm, 1000 * 10 ** 6); // 1000 USDC
 
     await program.methods
       .initBank({
@@ -249,7 +235,7 @@ describe("liquidate", () => {
       .signers([bankSol])
       .rpc();
 
-    await mintToBankSol(context, 100 * LAMPORTS_PER_SOL); // 100 SOL
+    await mintToBankSol(litesvm, 100 * LAMPORTS_PER_SOL); // 100 SOL
 
     await program.methods
       .initUser(USDC_MINT)
@@ -275,12 +261,7 @@ describe("liquidate", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     await program.methods
       .borrow(new BN(LAMPORTS_PER_SOL)) // 1 SOL
@@ -296,16 +277,11 @@ describe("liquidate", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     const borrowedMint = NATIVE_MINT;
     const collateralMint = USDC_MINT;
-    const [bankUsdcPda] = getBankPdaAndBump(collateralMint);
+    const bankUsdcPda = getBankPda(collateralMint);
 
     const minHealthFactor = 10.0; // Crank up minHealthFactor to trigger liquidation
 
@@ -325,8 +301,8 @@ describe("liquidate", () => {
       .signers([bankUsdc])
       .rpc();
 
-    const [userPda] = getUserPdaAndBump(userA.publicKey);
-    let userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(userA.publicKey);
+    let userAcc = await fetchUserAcc(program, userPda);
 
     const initUserBorrowedSol = userAcc.borrowedSol;
     const initUserBorrowedSolShares = userAcc.borrowedSolShares;
@@ -337,12 +313,12 @@ describe("liquidate", () => {
       await getAccount(provider.connection, liquidatorSolAtaPda)
     ).amount;
 
-    const [borrowedBankAta] = getBankAtaPdaAndBump(borrowedMint);
+    const borrowedBankAta = getBankAtaPda(borrowedMint);
     const initBorrowedBankAtaBal = (
       await getAccount(provider.connection, borrowedBankAta)
     ).amount;
 
-    const [collateralBankAta] = getBankAtaPdaAndBump(USDC_MINT);
+    const collateralBankAta = getBankAtaPda(USDC_MINT);
     const initCollateralBankAtaBal = (
       await getAccount(provider.connection, collateralBankAta)
     ).amount;
@@ -362,7 +338,7 @@ describe("liquidate", () => {
       .signers([liquidatorA])
       .rpc();
 
-    userAcc = await getUserAcc(program, userPda);
+    userAcc = await fetchUserAcc(program, userPda);
 
     const postUserBorrowedSol = userAcc.borrowedSol;
     const postUserBorrowedSolShares = userAcc.borrowedSolShares;
@@ -424,12 +400,7 @@ describe("liquidate", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     await program.methods
       .borrow(new BN(100 * 10 ** 6)) // 100 USDC
@@ -445,16 +416,11 @@ describe("liquidate", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     const borrowedMint = USDC_MINT;
     const collateralMint = NATIVE_MINT;
-    const [bankSolPda] = getBankPdaAndBump(collateralMint);
+    const bankSolPda = getBankPda(collateralMint);
 
     const minHealthFactor = 10.0; // Crank up minHealthFactor to trigger liquidation
 
@@ -474,8 +440,8 @@ describe("liquidate", () => {
       .signers([bankSol])
       .rpc();
 
-    const [userPda] = getUserPdaAndBump(userA.publicKey);
-    let userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(userA.publicKey);
+    let userAcc = await fetchUserAcc(program, userPda);
 
     const initUserBorrowedUsdc = userAcc.borrowedUsdc;
     const initUserBorrowedUsdcShares = userAcc.borrowedUsdcShares;
@@ -486,12 +452,12 @@ describe("liquidate", () => {
       await getAccount(provider.connection, liquidatorUsdcAtaPda)
     ).amount;
 
-    const [borrowedBankAta] = getBankAtaPdaAndBump(borrowedMint);
+    const borrowedBankAta = getBankAtaPda(borrowedMint);
     const initBorrowedBankAtaBal = (
       await getAccount(provider.connection, borrowedBankAta)
     ).amount;
 
-    const [collateralBankAta] = getBankAtaPdaAndBump(collateralMint);
+    const collateralBankAta = getBankAtaPda(collateralMint);
     const initCollateralBankAtaBal = (
       await getAccount(provider.connection, collateralBankAta)
     ).amount;
@@ -511,7 +477,7 @@ describe("liquidate", () => {
       .signers([liquidatorA])
       .rpc();
 
-    userAcc = await getUserAcc(program, userPda);
+    userAcc = await fetchUserAcc(program, userPda);
 
     const postUserBorrowedUsdc = userAcc.borrowedUsdc;
     const postUserBorrowedUsdcShares = userAcc.borrowedUsdcShares;

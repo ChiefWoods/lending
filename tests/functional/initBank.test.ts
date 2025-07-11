@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { ProgramTestContext } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
 import { Program } from "@coral-xyz/anchor";
-import { Keypair, LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
-import { getBankrunSetup } from "../setup";
+import { Keypair } from "@solana/web3.js";
 import { USDC_MINT } from "../constants";
 import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { getBankAtaPdaAndBump, getBankPdaAndBump } from "../pda";
-import { getBankAcc } from "../accounts";
+import { getBankAtaPda, getBankPda } from "../pda";
+import { fetchBankAcc } from "../accounts";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
+import { fundedSystemAccountInfo, getSetup } from "../setup";
 
 describe("initBank", () => {
-  let { context, provider, program } = {} as {
-    context: ProgramTestContext;
-    provider: BankrunProvider;
+  let { litesvm, provider, program } = {} as {
+    litesvm: LiteSVM;
+    provider: LiteSVMProvider;
     program: Program<Lending>;
   };
 
@@ -22,15 +22,10 @@ describe("initBank", () => {
   const tokenProgram = TOKEN_PROGRAM_ID;
 
   beforeEach(async () => {
-    ({ context, provider, program } = await getBankrunSetup([
+    ({ litesvm, provider, program } = await getSetup([
       {
-        address: authority.publicKey,
-        info: {
-          lamports: LAMPORTS_PER_SOL * 5,
-          data: Buffer.alloc(0),
-          owner: SystemProgram.programId,
-          executable: false,
-        },
+        pubkey: authority.publicKey,
+        account: fundedSystemAccountInfo(),
       },
     ]));
   });
@@ -61,12 +56,10 @@ describe("initBank", () => {
       .signers([authority])
       .rpc();
 
-    const [bankPda, bankBump] = getBankPdaAndBump(mint);
-    const [bankAtaPda, bankAtaBump] = getBankAtaPdaAndBump(mint);
-    const bankAcc = await getBankAcc(program, bankPda);
+    const bankPda = getBankPda(mint);
+    const bankAtaPda = getBankAtaPda(mint);
+    const bankAcc = await fetchBankAcc(program, bankPda);
 
-    expect(bankAcc.bump).toEqual(bankBump);
-    expect(bankAcc.bankAtaBump).toEqual(bankAtaBump);
     expect(bankAcc.totalDeposits.toNumber()).toEqual(0);
     expect(bankAcc.totalDepositShares.toNumber()).toEqual(0);
     expect(bankAcc.totalBorrowed.toNumber()).toEqual(0);
@@ -79,7 +72,7 @@ describe("initBank", () => {
     expect(bankAcc.authority).toStrictEqual(authority.publicKey);
     expect(bankAcc.mint).toStrictEqual(mint);
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
     expect(bankAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
 
     const bankAtaAcc = await getAccount(provider.connection, bankAtaPda);

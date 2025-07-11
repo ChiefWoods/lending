@@ -19,10 +19,10 @@ Borrow-lending protocol for [Solana Development Bootcamp](https://github.com/sol
 ### Libraries
 
 - [@coral-xyz/anchor](https://www.anchor-lang.com/)
-- [@solana/web3.js](https://solana-labs.github.io/solana-web3.js/)
+- [@solana/web3.js](https://solana-foundation.github.io/solana-web3.js/)
 - [@solana/spl-token](https://solana-labs.github.io/solana-program-library/token/js/)
-- [solana-bankrun](https://kevinheavey.github.io/solana-bankrun/)
-- [anchor-bankrun](https://kevinheavey.github.io/solana-bankrun/)
+- [litesvm](https://github.com/LiteSVM/litesvm/tree/master/crates/node-litesvm)
+- [anchor-litesvm](https://github.com/LiteSVM/anchor-litesvm/)
 - [@solana/wallet-adapter-react](https://github.com/anza-xyz/wallet-adapter)
 - [@pythnetwork/hermes-client](https://pyth.network/)
 - [@pythnetwork/price-service-sdk](https://pyth.network/)
@@ -78,6 +78,12 @@ anchor keys sync
 anchor build
 ```
 
+> [!NOTE]  
+> Use the test build of the program when running tests.
+> ```
+> bun run build:test
+> ```
+
 5. In `/app`, configure `.env` files
 
 ```bash
@@ -91,8 +97,6 @@ Run all `.test.ts` files under `/tests`.
 ```bash
 bun test
 ```
-
-Note: certain test parameters may have to be adjusted as the SOL-USD and USDC-USD prices fluctuate.
 
 #### Deployment
 

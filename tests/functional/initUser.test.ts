@@ -1,33 +1,28 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { ProgramTestContext } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
 import { Program } from "@coral-xyz/anchor";
-import { Keypair, LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
-import { getBankrunSetup } from "../setup";
+import { Keypair } from "@solana/web3.js";
 import { USDC_MINT } from "../constants";
-import { getUserPdaAndBump } from "../pda";
-import { getUserAcc } from "../accounts";
+import { getUserPda } from "../pda";
+import { fetchUserAcc } from "../accounts";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
+import { fundedSystemAccountInfo, getSetup } from "../setup";
 
 describe("initUser", () => {
-  let { context, provider, program } = {} as {
-    context: ProgramTestContext;
-    provider: BankrunProvider;
+  let { litesvm, provider, program } = {} as {
+    litesvm: LiteSVM;
+    provider: LiteSVMProvider;
     program: Program<Lending>;
   };
 
   const authority = Keypair.generate();
 
   beforeEach(async () => {
-    ({ context, provider, program } = await getBankrunSetup([
+    ({ litesvm, provider, program } = await getSetup([
       {
-        address: authority.publicKey,
-        info: {
-          lamports: LAMPORTS_PER_SOL * 5,
-          data: Buffer.alloc(0),
-          owner: SystemProgram.programId,
-          executable: false,
-        },
+        pubkey: authority.publicKey,
+        account: fundedSystemAccountInfo(),
       },
     ]));
   });
@@ -43,10 +38,9 @@ describe("initUser", () => {
       .signers([authority])
       .rpc();
 
-    const [userPda, userBump] = getUserPdaAndBump(authority.publicKey);
-    const userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(authority.publicKey);
+    const userAcc = await fetchUserAcc(program, userPda);
 
-    expect(userAcc.bump).toEqual(userBump);
     expect(userAcc.depositedSol.toNumber()).toEqual(0);
     expect(userAcc.depositedSolShares.toNumber()).toEqual(0);
     expect(userAcc.borrowedSol.toNumber()).toEqual(0);
@@ -59,7 +53,7 @@ describe("initUser", () => {
     expect(userAcc.authority).toStrictEqual(authority.publicKey);
     expect(userAcc.usdcMint).toStrictEqual(usdcMint);
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
 
     expect(userAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
   });

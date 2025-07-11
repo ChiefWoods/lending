@@ -1,23 +1,25 @@
 import { PublicKey } from "@solana/web3.js";
 import idl from "../target/idl/lending.json";
 
-export function getBankPdaAndBump(mint: PublicKey) {
+const LENDING_PROGRAM_ID = new PublicKey(idl.address);
+
+export function getBankPda(mint: PublicKey) {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("bank"), mint.toBuffer()],
-    new PublicKey(idl.address)
-  );
+    LENDING_PROGRAM_ID,
+  )[0];
 }
 
-export function getUserPdaAndBump(authority: PublicKey) {
+export function getUserPda(authority: PublicKey) {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("user"), authority.toBuffer()],
-    new PublicKey(idl.address)
-  );
+    LENDING_PROGRAM_ID,
+  )[0];
 }
 
-export function getBankAtaPdaAndBump(mint: PublicKey) {
+export function getBankAtaPda(mint: PublicKey) {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("treasury"), mint.toBuffer()],
-    new PublicKey(idl.address)
-  );
+    LENDING_PROGRAM_ID,
+  )[0];
 }

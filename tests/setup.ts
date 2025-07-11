@@ -1,11 +1,4 @@
-import { Program } from "@coral-xyz/anchor";
-import { BankrunProvider } from "anchor-bankrun";
-import {
-  AddedAccount,
-  Clock,
-  ProgramTestContext,
-  startAnchor,
-} from "solana-bankrun";
+import { AnchorError, Program } from "@coral-xyz/anchor";
 import { Lending } from "../target/types/lending";
 import idl from "../target/idl/lending.json";
 import {
@@ -21,31 +14,35 @@ import {
   Connection,
   LAMPORTS_PER_SOL,
   PublicKey,
+  SystemProgram,
 } from "@solana/web3.js";
 import {
   SOL_USD_PRICE_FEED_PDA,
   USDC_MINT,
   USDC_USD_PRICE_FEED_PDA,
 } from "./constants";
-import { BankrunContextWrapper } from "./bankrunContextWrapper";
-import { getBankAtaPdaAndBump } from "./pda";
+import { getBankAtaPda } from "./pda";
+import { AccountInfoBytes, Clock, LiteSVM } from "litesvm";
+import { fromWorkspace, LiteSVMProvider } from "anchor-litesvm";
+import { expect } from "bun:test";
 
 const devnetConnection = new Connection(clusterApiUrl("devnet"));
 
-export async function getBankrunSetup(accounts: AddedAccount[] = []) {
-  const context = await startAnchor("", [], accounts, 400000n);
+export async function getSetup(
+  accounts: { pubkey: PublicKey; account: AccountInfoBytes }[] = [],
+) {
+  const litesvm = fromWorkspace("./");
 
-  const provider = new BankrunProvider(context);
-  const program = new Program(idl as Lending, provider);
-  const wrappedContext = new BankrunContextWrapper(context);
-
-  const usdcMintData = Buffer.alloc(MINT_SIZE);
+  const [usdcMintData, wrappedSolData] = Array.from({ length: 2 }, () =>
+    Buffer.alloc(MINT_SIZE),
+  );
+  const wrappedSolSupply = 10 ** 12;
 
   MintLayout.encode(
     {
-      mintAuthority: context.payer.publicKey, // setting USDC mint manually to override mintAuthority
-      mintAuthorityOption: 1,
-      supply: BigInt(10 ** 12),
+      mintAuthority: PublicKey.default,
+      mintAuthorityOption: 0,
+      supply: BigInt(10 ** 6 * 10 ** 6),
       decimals: 6,
       isInitialized: true,
       freezeAuthority: PublicKey.default,
@@ -54,31 +51,100 @@ export async function getBankrunSetup(accounts: AddedAccount[] = []) {
     usdcMintData,
   );
 
-  context.setAccount(USDC_MINT, {
+  MintLayout.encode(
+    {
+      mintAuthority: PublicKey.default,
+      mintAuthorityOption: 0,
+      supply: BigInt(wrappedSolSupply),
+      decimals: 9,
+      isInitialized: true,
+      freezeAuthority: PublicKey.default,
+      freezeAuthorityOption: 0,
+    },
+    wrappedSolData,
+  );
+
+  litesvm.setAccount(USDC_MINT, {
     data: usdcMintData,
     executable: false,
-    lamports: LAMPORTS_PER_SOL,
+    lamports: wrappedSolSupply,
     owner: TOKEN_PROGRAM_ID,
   });
 
-  await setPriceFeedAccs(context, [
-    SOL_USD_PRICE_FEED_PDA,
-    USDC_USD_PRICE_FEED_PDA,
+  litesvm.setAccount(NATIVE_MINT, {
+    data: wrappedSolData,
+    executable: false,
+    lamports: wrappedSolSupply,
+    owner: TOKEN_PROGRAM_ID,
+  });
+
+  const [solUsdPriceFeedInfo, usdcUsdPriceFeedInfo] =
+    await devnetConnection.getMultipleAccountsInfo([
+      SOL_USD_PRICE_FEED_PDA,
+      USDC_USD_PRICE_FEED_PDA,
+    ]);
+
+  const priceFeedMap = new Map<PublicKey, AccountInfoBytes>([
+    [SOL_USD_PRICE_FEED_PDA, solUsdPriceFeedInfo],
+    [USDC_USD_PRICE_FEED_PDA, usdcUsdPriceFeedInfo],
   ]);
 
+  for (const [pubkey, info] of priceFeedMap.entries()) {
+    litesvm.setAccount(pubkey, {
+      data: info.data,
+      executable: false,
+      lamports: info.lamports,
+      owner: info.owner,
+    });
+  }
+
+  for (const { pubkey, account } of accounts) {
+    litesvm.setAccount(new PublicKey(pubkey), {
+      data: account.data,
+      executable: account.executable,
+      lamports: account.lamports,
+      owner: new PublicKey(account.owner),
+    });
+  }
+
+  const provider = new LiteSVMProvider(litesvm);
+  const program = new Program<Lending>(idl, provider);
+
+  return { litesvm, provider, program };
+}
+
+export function fundedSystemAccountInfo(
+  lamports: number = LAMPORTS_PER_SOL,
+): AccountInfoBytes {
   return {
-    context,
-    provider,
-    program,
-    wrappedContext,
+    lamports,
+    data: Buffer.alloc(0),
+    owner: SystemProgram.programId,
+    executable: false,
   };
 }
 
-export async function mintToBankUsdc(
-  context: ProgramTestContext,
-  amount: number,
-) {
-  const [bankUsdcAtaPda] = getBankAtaPdaAndBump(USDC_MINT);
+export async function expectAnchorError(error: Error, code: string) {
+  expect(error).toBeInstanceOf(AnchorError);
+  const { errorCode } = (error as AnchorError).error;
+  expect(errorCode.code).toBe(code);
+}
+
+export async function forwardTime(litesvm: LiteSVM, sec: number) {
+  const clock = litesvm.getClock();
+  litesvm.setClock(
+    new Clock(
+      clock.slot,
+      clock.epochStartTimestamp,
+      clock.epoch,
+      clock.leaderScheduleEpoch,
+      clock.unixTimestamp + BigInt(sec),
+    ),
+  );
+}
+
+export async function mintToBankUsdc(litesvm: LiteSVM, amount: number) {
+  const bankUsdcAtaPda = getBankAtaPda(USDC_MINT);
   const bankUsdcAtaData = Buffer.alloc(ACCOUNT_SIZE);
 
   AccountLayout.encode(
@@ -98,7 +164,7 @@ export async function mintToBankUsdc(
     bankUsdcAtaData,
   );
 
-  context.setAccount(bankUsdcAtaPda, {
+  litesvm.setAccount(bankUsdcAtaPda, {
     data: bankUsdcAtaData,
     executable: false,
     lamports: LAMPORTS_PER_SOL,
@@ -106,11 +172,8 @@ export async function mintToBankUsdc(
   });
 }
 
-export async function mintToBankSol(
-  context: ProgramTestContext,
-  lamports: number,
-) {
-  const [bankSolAtaPda] = getBankAtaPdaAndBump(NATIVE_MINT);
+export async function mintToBankSol(litesvm: LiteSVM, lamports: number) {
+  const bankSolAtaPda = getBankAtaPda(NATIVE_MINT);
   const bankSolAtaData = Buffer.alloc(ACCOUNT_SIZE);
 
   AccountLayout.encode(
@@ -130,34 +193,10 @@ export async function mintToBankSol(
     bankSolAtaData,
   );
 
-  context.setAccount(bankSolAtaPda, {
+  litesvm.setAccount(bankSolAtaPda, {
     data: bankSolAtaData,
     executable: false,
     lamports,
     owner: TOKEN_PROGRAM_ID,
   });
-}
-
-export async function setPriceFeedAccs(
-  context: ProgramTestContext,
-  pubkeys: PublicKey[],
-) {
-  const accInfos = await devnetConnection.getMultipleAccountsInfo(pubkeys);
-
-  accInfos.forEach((info, i) => {
-    context.setAccount(pubkeys[i], info);
-  });
-}
-
-export async function forwardTime(context: ProgramTestContext, sec: number) {
-  const clock = await context.banksClient.getClock();
-  context.setClock(
-    new Clock(
-      clock.slot,
-      clock.epochStartTimestamp,
-      clock.epoch,
-      clock.leaderScheduleEpoch,
-      clock.unixTimestamp + BigInt(sec),
-    ),
-  );
 }

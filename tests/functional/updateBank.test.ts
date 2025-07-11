@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { ProgramTestContext } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
 import { Program } from "@coral-xyz/anchor";
-import { Keypair, LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
-import { getBankrunSetup } from "../setup";
+import { Keypair } from "@solana/web3.js";
 import { USDC_MINT } from "../constants";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { getBankPdaAndBump } from "../pda";
-import { getBankAcc } from "../accounts";
+import { getBankPda } from "../pda";
+import { fetchBankAcc } from "../accounts";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
+import { fundedSystemAccountInfo, getSetup } from "../setup";
 
 describe("initBank", () => {
-  let { context, provider, program } = {} as {
-    context: ProgramTestContext;
-    provider: BankrunProvider;
+  let { litesvm, provider, program } = {} as {
+    litesvm: LiteSVM;
+    provider: LiteSVMProvider;
     program: Program<Lending>;
   };
 
@@ -22,15 +22,10 @@ describe("initBank", () => {
   const tokenProgram = TOKEN_PROGRAM_ID;
 
   beforeEach(async () => {
-    ({ context, provider, program } = await getBankrunSetup([
+    ({ litesvm, provider, program } = await getSetup([
       {
-        address: authority.publicKey,
-        info: {
-          lamports: LAMPORTS_PER_SOL * 5,
-          data: Buffer.alloc(0),
-          owner: SystemProgram.programId,
-          executable: false,
-        },
+        pubkey: authority.publicKey,
+        account: fundedSystemAccountInfo(),
       },
     ]));
 
@@ -61,7 +56,7 @@ describe("initBank", () => {
   });
 
   test("update a bank", async () => {
-    const [bankPda] = getBankPdaAndBump(USDC_MINT);
+    const bankPda = getBankPda(USDC_MINT);
 
     const liquidationThreshold = 9500; // 95% in basis points
     const liquidationBonus = 750; // 7.5% in basis points
@@ -86,7 +81,7 @@ describe("initBank", () => {
       .signers([authority])
       .rpc();
 
-    const bankAcc = await getBankAcc(program, bankPda);
+    const bankAcc = await fetchBankAcc(program, bankPda);
 
     expect(bankAcc.liquidationThreshold).toEqual(liquidationThreshold);
     expect(bankAcc.liquidationBonus).toEqual(liquidationBonus);
@@ -94,7 +89,7 @@ describe("initBank", () => {
     expect(bankAcc.maxLtv).toEqual(maxLtv);
     expect(bankAcc.interestRate).toEqual(interestRate);
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
 
     expect(bankAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
   });

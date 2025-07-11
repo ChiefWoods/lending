@@ -1,32 +1,22 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Lending } from "../../target/types/lending";
-import { ProgramTestContext } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
-import { AnchorError, BN, Program } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import {
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-} from "@solana/web3.js";
-import {
+  expectAnchorError,
   forwardTime,
-  getBankrunSetup,
+  fundedSystemAccountInfo,
+  getSetup,
   mintToBankSol,
   mintToBankUsdc,
-  setPriceFeedAccs,
 } from "../setup";
 import {
   SOL_USD_PRICE_FEED_PDA,
   USDC_MINT,
   USDC_USD_PRICE_FEED_PDA,
 } from "../constants";
-import {
-  getBankAtaPdaAndBump,
-  getBankPdaAndBump,
-  getUserPdaAndBump,
-} from "../pda";
-import { getBankAcc, getUserAcc } from "../accounts";
+import { getBankAtaPda, getBankPda, getUserPda } from "../pda";
+import { fetchBankAcc, fetchUserAcc } from "../accounts";
 import {
   ACCOUNT_SIZE,
   AccountLayout,
@@ -35,11 +25,13 @@ import {
   NATIVE_MINT,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { LiteSVM } from "litesvm";
+import { LiteSVMProvider } from "anchor-litesvm";
 
 describe("borrow", () => {
-  let { context, provider, program } = {} as {
-    context: ProgramTestContext;
-    provider: BankrunProvider;
+  let { litesvm, provider, program } = {} as {
+    litesvm: LiteSVM;
+    provider: LiteSVMProvider;
     program: Program<Lending>;
   };
 
@@ -103,21 +95,16 @@ describe("borrow", () => {
       userSolAtaData,
     );
 
-    ({ context, provider, program } = await getBankrunSetup([
+    ({ litesvm, provider, program } = await getSetup([
       ...[bankUsdc, bankSol, userA].map((kp) => {
         return {
-          address: kp.publicKey,
-          info: {
-            lamports: LAMPORTS_PER_SOL * 5,
-            data: Buffer.alloc(0),
-            owner: SystemProgram.programId,
-            executable: false,
-          },
+          pubkey: kp.publicKey,
+          account: fundedSystemAccountInfo(),
         };
       }),
       {
-        address: userUsdcAtaPda,
-        info: {
+        pubkey: userUsdcAtaPda,
+        account: {
           lamports: LAMPORTS_PER_SOL,
           data: userUsdcAtaData,
           owner: tokenProgram,
@@ -125,8 +112,8 @@ describe("borrow", () => {
         },
       },
       {
-        address: userSolAtaPda,
-        info: {
+        pubkey: userSolAtaPda,
+        account: {
           lamports: initUserSolAtaBal,
           data: userSolAtaData,
           owner: tokenProgram,
@@ -159,7 +146,7 @@ describe("borrow", () => {
       .signers([bankUsdc])
       .rpc();
 
-    await mintToBankUsdc(context, 1000 * 10 ** 6); // 1000 USDC
+    await mintToBankUsdc(litesvm, 1000 * 10 ** 6); // 1000 USDC
 
     await program.methods
       .initBank({
@@ -178,7 +165,7 @@ describe("borrow", () => {
       .signers([bankSol])
       .rpc();
 
-    await mintToBankSol(context, 100 * LAMPORTS_PER_SOL); // 100 SOL
+    await mintToBankSol(litesvm, 100 * LAMPORTS_PER_SOL); // 100 SOL
 
     await program.methods
       .initUser(USDC_MINT)
@@ -204,16 +191,11 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     const mint = NATIVE_MINT;
 
-    const [bankSolAtaPda] = getBankAtaPdaAndBump(mint);
+    const bankSolAtaPda = getBankAtaPda(mint);
     const initBankSolAtaAccBal = (
       await getAccount(provider.connection, bankSolAtaPda)
     ).amount;
@@ -234,19 +216,19 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    const [bankSolAta] = getBankPdaAndBump(mint);
-    const bankSolAcc = await getBankAcc(program, bankSolAta);
+    const bankSolAta = getBankPda(mint);
+    const bankSolAcc = await fetchBankAcc(program, bankSolAta);
 
     expect(bankSolAcc.totalBorrowed.toNumber()).toBeGreaterThan(0);
     expect(bankSolAcc.totalBorrowedShares.toNumber()).toBeGreaterThan(0);
 
-    const [userPda] = getUserPdaAndBump(userA.publicKey);
-    const userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(userA.publicKey);
+    const userAcc = await fetchUserAcc(program, userPda);
 
     expect(userAcc.borrowedSol.toNumber()).toBeGreaterThan(0);
     expect(userAcc.borrowedSolShares.toNumber()).toBeGreaterThan(0);
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
 
     expect(bankSolAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
       unixTimestamp,
@@ -277,16 +259,11 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     const mint = USDC_MINT;
 
-    const [bankUsdcAtaPda] = getBankAtaPdaAndBump(mint);
+    const bankUsdcAtaPda = getBankAtaPda(mint);
     const initBankUsdcAtaAccBal = (
       await getAccount(provider.connection, bankUsdcAtaPda)
     ).amount;
@@ -307,19 +284,19 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    const [bankUsdcAta] = getBankPdaAndBump(mint);
-    const bankUsdcAcc = await getBankAcc(program, bankUsdcAta);
+    const bankUsdcAta = getBankPda(mint);
+    const bankUsdcAcc = await fetchBankAcc(program, bankUsdcAta);
 
     expect(bankUsdcAcc.totalBorrowed.toNumber()).toBeGreaterThan(0);
     expect(bankUsdcAcc.totalBorrowedShares.toNumber()).toBeGreaterThan(0);
 
-    const [userPda] = getUserPdaAndBump(userA.publicKey);
-    const userAcc = await getUserAcc(program, userPda);
+    const userPda = getUserPda(userA.publicKey);
+    const userAcc = await fetchUserAcc(program, userPda);
 
     expect(userAcc.borrowedUsdc.toNumber()).toBeGreaterThan(0);
     expect(userAcc.borrowedUsdcShares.toNumber()).toBeGreaterThan(0);
 
-    const { unixTimestamp } = await context.banksClient.getClock();
+    const { unixTimestamp } = litesvm.getClock();
 
     expect(bankUsdcAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
       unixTimestamp,
@@ -350,12 +327,7 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     const amount = new BN(0);
 
@@ -374,11 +346,7 @@ describe("borrow", () => {
         .signers([userA])
         .rpc();
     } catch (err) {
-      expect(err).toBeInstanceOf(AnchorError);
-
-      const { error } = err as AnchorError;
-      expect(error.errorCode.code).toEqual("InvalidAmount");
-      expect(error.errorCode.number).toEqual(6000);
+      expectAnchorError(err, "InvalidAmount");
     }
   });
 
@@ -397,12 +365,7 @@ describe("borrow", () => {
       .signers([userA])
       .rpc();
 
-    await forwardTime(context, 10); // elapsed 10 secs
-
-    await setPriceFeedAccs(context, [
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
+    await forwardTime(litesvm, 10); // elapsed 10 secs
 
     const amount = new BN(10 * LAMPORTS_PER_SOL); // 10 SOL
 
@@ -421,11 +384,7 @@ describe("borrow", () => {
         .signers([userA])
         .rpc();
     } catch (err) {
-      expect(err).toBeInstanceOf(AnchorError);
-
-      const { error } = err as AnchorError;
-      expect(error.errorCode.code).toEqual("ExceededLTV");
-      expect(error.errorCode.number).toEqual(6003);
+      expectAnchorError(err, "ExceededLTV");
     }
   });
 });
