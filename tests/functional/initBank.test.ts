@@ -80,7 +80,6 @@ describe("initBank", () => {
     expect(bankAcc.mint).toStrictEqual(mint);
 
     const { unixTimestamp } = await context.banksClient.getClock();
-
     expect(bankAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
 
     const bankAtaAcc = await getAccount(provider.connection, bankAtaPda);

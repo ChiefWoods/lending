@@ -77,7 +77,7 @@ pub struct Liquidate<'info> {
 }
 
 impl Liquidate<'_> {
-    pub fn liquidate(ctx: Context<Liquidate>) -> Result<()> {
+    pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
         let collateral_bank = &mut ctx.accounts.collateral_bank;
         let borrowed_bank = &mut ctx.accounts.borrowed_bank;
         let user = &mut ctx.accounts.user;

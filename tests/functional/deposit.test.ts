@@ -39,7 +39,7 @@ describe("deposit", () => {
 
   const [bankUsdc, bankSol, userA] = Array.from(
     { length: 3 },
-    Keypair.generate
+    Keypair.generate,
   );
 
   const tokenProgram = TOKEN_PROGRAM_ID;
@@ -50,9 +50,9 @@ describe("deposit", () => {
         mint,
         userA.publicKey,
         false,
-        tokenProgram
+        tokenProgram,
       );
-    }
+    },
   );
 
   const initUserUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
@@ -60,7 +60,7 @@ describe("deposit", () => {
 
   beforeEach(async () => {
     const [userUsdcAtaData, userSolAtaData] = Array.from({ length: 2 }, () =>
-      Buffer.alloc(ACCOUNT_SIZE)
+      Buffer.alloc(ACCOUNT_SIZE),
     );
 
     AccountLayout.encode(
@@ -77,7 +77,7 @@ describe("deposit", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userUsdcAtaData
+      userUsdcAtaData,
     );
 
     AccountLayout.encode(
@@ -94,7 +94,7 @@ describe("deposit", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userSolAtaData
+      userSolAtaData,
     );
 
     ({ context, provider, program } = await getBankrunSetup([
@@ -220,7 +220,7 @@ describe("deposit", () => {
 
     expect(postTotalDeposits).toEqual(initTotalDeposits + amount.toNumber());
     expect(postTotalDepositShares).toEqual(
-      initTotalDepositShares + amount.toNumber()
+      initTotalDepositShares + amount.toNumber(),
     );
 
     const [userPda] = getUserPdaAndBump(userA.publicKey);
@@ -228,13 +228,13 @@ describe("deposit", () => {
 
     expect(userAcc.depositedUsdc.toNumber()).toEqual(amount.toNumber());
     expect(userAcc.depositedUsdcShares.toNumber()).toEqual(
-      initTotalDepositShares + amount.toNumber()
+      initTotalDepositShares + amount.toNumber(),
     );
 
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankUsdcAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
 
     const postBankUsdcAtaBal = (
@@ -242,7 +242,7 @@ describe("deposit", () => {
     ).amount;
 
     expect(Number(postBankUsdcAtaBal)).toEqual(
-      Number(initBankUsdcAtaBal) + amount.toNumber()
+      Number(initBankUsdcAtaBal) + amount.toNumber(),
     );
   });
 
@@ -283,7 +283,7 @@ describe("deposit", () => {
 
     expect(postTotalDeposits).toEqual(initTotalDeposits + amount.toNumber());
     expect(postTotalDepositShares).toEqual(
-      initTotalDepositShares + amount.toNumber()
+      initTotalDepositShares + amount.toNumber(),
     );
 
     const [userPda] = getUserPdaAndBump(userA.publicKey);
@@ -291,13 +291,13 @@ describe("deposit", () => {
 
     expect(userAcc.depositedSol.toNumber()).toEqual(amount.toNumber());
     expect(userAcc.depositedSolShares.toNumber()).toEqual(
-      initTotalDepositShares + amount.toNumber()
+      initTotalDepositShares + amount.toNumber(),
     );
 
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankSolAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
 
     const postBankSolAtaBal = (
@@ -305,7 +305,7 @@ describe("deposit", () => {
     ).amount;
 
     expect(Number(postBankSolAtaBal)).toEqual(
-      Number(initBankSolAtaBal) + amount.toNumber()
+      Number(initBankSolAtaBal) + amount.toNumber(),
     );
   });
 

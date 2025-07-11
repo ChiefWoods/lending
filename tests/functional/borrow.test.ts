@@ -45,7 +45,7 @@ describe("borrow", () => {
 
   const [bankUsdc, bankSol, userA] = Array.from(
     { length: 3 },
-    Keypair.generate
+    Keypair.generate,
   );
 
   const tokenProgram = TOKEN_PROGRAM_ID;
@@ -56,9 +56,9 @@ describe("borrow", () => {
         mint,
         userA.publicKey,
         false,
-        tokenProgram
+        tokenProgram,
       );
-    }
+    },
   );
 
   const initUserUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
@@ -66,7 +66,7 @@ describe("borrow", () => {
 
   beforeEach(async () => {
     const [userUsdcAtaData, userSolAtaData] = Array.from({ length: 2 }, () =>
-      Buffer.alloc(ACCOUNT_SIZE)
+      Buffer.alloc(ACCOUNT_SIZE),
     );
 
     AccountLayout.encode(
@@ -83,7 +83,7 @@ describe("borrow", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userUsdcAtaData
+      userUsdcAtaData,
     );
 
     AccountLayout.encode(
@@ -100,7 +100,7 @@ describe("borrow", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userSolAtaData
+      userSolAtaData,
     );
 
     ({ context, provider, program } = await getBankrunSetup([
@@ -249,7 +249,7 @@ describe("borrow", () => {
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankSolAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
     expect(userAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
 
@@ -258,7 +258,7 @@ describe("borrow", () => {
     ).amount;
 
     expect(Number(postBankSolAtaAccBal)).toBeLessThan(
-      Number(initBankSolAtaAccBal)
+      Number(initBankSolAtaAccBal),
     );
   });
 
@@ -322,7 +322,7 @@ describe("borrow", () => {
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankUsdcAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
     expect(userAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
 
@@ -331,7 +331,7 @@ describe("borrow", () => {
     ).amount;
 
     expect(Number(postBankUsdcAtaAccBal)).toBeLessThan(
-      Number(initBankUsdcAtaAccBal)
+      Number(initBankUsdcAtaAccBal),
     );
   });
 

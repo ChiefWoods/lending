@@ -53,7 +53,7 @@ pub struct Withdraw<'info> {
 }
 
 impl Withdraw<'_> {
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         require_gt!(amount, 0, LendingError::InvalidAmount);
 
         let bank = &mut ctx.accounts.bank;

@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::{Bank, BANK_SEED, TREASURY_SEED};
@@ -42,7 +42,7 @@ pub struct InitBank<'info> {
 }
 
 impl InitBank<'_> {
-    pub fn init_bank(ctx: Context<InitBank>, args: InitBankArgs) -> Result<()> {
+    pub fn handler(ctx: Context<InitBank>, args: InitBankArgs) -> Result<()> {
         ctx.accounts.bank.set_inner(Bank {
             bump: ctx.bumps.bank,
             bank_ata_bump: ctx.bumps.bank_ata,

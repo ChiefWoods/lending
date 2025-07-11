@@ -56,7 +56,7 @@ pub struct Borrow<'info> {
 }
 
 impl Borrow<'_> {
-    pub fn borrow(ctx: Context<Borrow>, amount: u64) -> Result<()> {
+    pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         require_gt!(amount, 0, LendingError::InvalidAmount);
 
         let bank = &mut ctx.accounts.bank;

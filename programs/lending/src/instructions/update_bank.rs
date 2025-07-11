@@ -25,7 +25,7 @@ pub struct UpdateBank<'info> {
 }
 
 impl UpdateBank<'_> {
-    pub fn update_bank(ctx: Context<UpdateBank>, args: UpdateBankArgs) -> Result<()> {
+    pub fn handler(ctx: Context<UpdateBank>, args: UpdateBankArgs) -> Result<()> {
         let bank = &mut ctx.accounts.bank;
 
         if let Some(liquidation_threshold) = args.liquidation_threshold {

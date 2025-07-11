@@ -52,7 +52,7 @@ pub struct Deposit<'info> {
 }
 
 impl Deposit<'_> {
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    pub fn handler(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         require_gt!(amount, 0, LendingError::InvalidAmount);
 
         let bank = &mut ctx.accounts.bank;

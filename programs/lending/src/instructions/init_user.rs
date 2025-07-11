@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 
 use crate::{User, USER_SEED};
 
@@ -18,7 +18,7 @@ pub struct InitUser<'info> {
 }
 
 impl InitUser<'_> {
-    pub fn init_user(ctx: Context<InitUser>, usdc_mint: Pubkey) -> Result<()> {
+    pub fn handler(ctx: Context<InitUser>, usdc_mint: Pubkey) -> Result<()> {
         ctx.accounts.user.set_inner(User {
             bump: ctx.bumps.user,
             deposited_sol: 0,

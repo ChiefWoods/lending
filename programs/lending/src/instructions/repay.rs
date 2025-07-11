@@ -53,7 +53,7 @@ pub struct Repay<'info> {
 }
 
 impl Repay<'_> {
-    pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
+    pub fn handler(ctx: Context<Repay>, amount: u64) -> Result<()> {
         require_gt!(amount, 0, LendingError::InvalidAmount);
 
         let bank = &mut ctx.accounts.bank;

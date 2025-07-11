@@ -39,7 +39,7 @@ describe("withdraw", () => {
 
   const [bankUsdc, bankSol, userA] = Array.from(
     { length: 3 },
-    Keypair.generate
+    Keypair.generate,
   );
 
   const tokenProgram = TOKEN_PROGRAM_ID;
@@ -50,9 +50,9 @@ describe("withdraw", () => {
         mint,
         userA.publicKey,
         false,
-        tokenProgram
+        tokenProgram,
       );
-    }
+    },
   );
 
   const initUserUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
@@ -60,7 +60,7 @@ describe("withdraw", () => {
 
   beforeEach(async () => {
     const [userUsdcAtaData, userSolAtaData] = Array.from({ length: 2 }, () =>
-      Buffer.alloc(ACCOUNT_SIZE)
+      Buffer.alloc(ACCOUNT_SIZE),
     );
 
     AccountLayout.encode(
@@ -77,7 +77,7 @@ describe("withdraw", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userUsdcAtaData
+      userUsdcAtaData,
     );
 
     AccountLayout.encode(
@@ -94,7 +94,7 @@ describe("withdraw", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userSolAtaData
+      userSolAtaData,
     );
 
     ({ context, provider, program } = await getBankrunSetup([
@@ -241,10 +241,10 @@ describe("withdraw", () => {
       bankUsdcAcc.totalDepositShares.toNumber();
 
     expect(postBankUsdcTotalDeposits).toEqual(
-      initBankUsdcTotalDeposits - amount.toNumber()
+      initBankUsdcTotalDeposits - amount.toNumber(),
     );
     expect(postBankUsdcTotalDepositShares).toEqual(
-      initBankUsdcTotalDepositShares - amount.toNumber()
+      initBankUsdcTotalDepositShares - amount.toNumber(),
     );
 
     userAcc = await getUserAcc(program, userPda);
@@ -253,16 +253,16 @@ describe("withdraw", () => {
     const postUserDepositedUsdcShares = userAcc.depositedUsdcShares.toNumber();
 
     expect(postUserDepositedUsdc).toEqual(
-      initUserDepositedUsdc - amount.toNumber()
+      initUserDepositedUsdc - amount.toNumber(),
     );
     expect(postUserDepositedUsdcShares).toEqual(
-      initUserDepositedUsdcShares - amount.toNumber()
+      initUserDepositedUsdcShares - amount.toNumber(),
     );
 
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankUsdcAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
 
     const postBankUsdcAtaAccBal = (
@@ -270,7 +270,7 @@ describe("withdraw", () => {
     ).amount;
 
     expect(Number(postBankUsdcAtaAccBal)).toEqual(
-      Number(initBankUsdcAtaAccBal) - amount.toNumber()
+      Number(initBankUsdcAtaAccBal) - amount.toNumber(),
     );
   });
 
@@ -328,10 +328,10 @@ describe("withdraw", () => {
     bankSolAcc = await getBankAcc(program, bankSolPda);
 
     expect(bankSolAcc.totalDeposits.toNumber()).toBeLessThan(
-      initBankSolTotalDeposits
+      initBankSolTotalDeposits,
     );
     expect(bankSolAcc.totalDepositShares.toNumber()).toBeLessThan(
-      initBankSolTotalDepositShares
+      initBankSolTotalDepositShares,
     );
 
     userAcc = await getUserAcc(program, userPda);
@@ -340,16 +340,16 @@ describe("withdraw", () => {
     const postUserDepositedSolShares = userAcc.depositedSolShares.toNumber();
 
     expect(postUserDepositedSol).toEqual(
-      initUserDepositedSol - amount.toNumber()
+      initUserDepositedSol - amount.toNumber(),
     );
     expect(postUserDepositedSolShares).toEqual(
-      initUserDepositedSolShares - amount.toNumber()
+      initUserDepositedSolShares - amount.toNumber(),
     );
 
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankSolAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
 
     const postBankSolAtaAccBal = (

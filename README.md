@@ -23,7 +23,6 @@ Borrow-lending protocol for [Solana Development Bootcamp](https://github.com/sol
 - [@solana/spl-token](https://solana-labs.github.io/solana-program-library/token/js/)
 - [solana-bankrun](https://kevinheavey.github.io/solana-bankrun/)
 - [anchor-bankrun](https://kevinheavey.github.io/solana-bankrun/)
-- [spl-token-bankrun](https://github.com/metaDAOproject/spl-token-bankrun)
 - [@solana/wallet-adapter-react](https://github.com/anza-xyz/wallet-adapter)
 - [@pythnetwork/hermes-client](https://pyth.network/)
 - [@pythnetwork/price-service-sdk](https://pyth.network/)

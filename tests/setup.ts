@@ -9,7 +9,8 @@ import {
 import { Lending } from "../target/types/lending";
 import idl from "../target/idl/lending.json";
 import {
-  createSyncNativeInstruction,
+  ACCOUNT_SIZE,
+  AccountLayout,
   MINT_SIZE,
   MintLayout,
   NATIVE_MINT,
@@ -20,8 +21,6 @@ import {
   Connection,
   LAMPORTS_PER_SOL,
   PublicKey,
-  SystemProgram,
-  Transaction,
 } from "@solana/web3.js";
 import {
   SOL_USD_PRICE_FEED_PDA,
@@ -29,7 +28,6 @@ import {
   USDC_USD_PRICE_FEED_PDA,
 } from "./constants";
 import { BankrunContextWrapper } from "./bankrunContextWrapper";
-import { mintTo } from "spl-token-bankrun";
 import { getBankAtaPdaAndBump } from "./pda";
 
 const devnetConnection = new Connection(clusterApiUrl("devnet"));
@@ -53,7 +51,7 @@ export async function getBankrunSetup(accounts: AddedAccount[] = []) {
       freezeAuthority: PublicKey.default,
       freezeAuthorityOption: 0,
     },
-    usdcMintData
+    usdcMintData,
   );
 
   context.setAccount(USDC_MINT, {
@@ -78,44 +76,71 @@ export async function getBankrunSetup(accounts: AddedAccount[] = []) {
 
 export async function mintToBankUsdc(
   context: ProgramTestContext,
-  amount: number
+  amount: number,
 ) {
   const [bankUsdcAtaPda] = getBankAtaPdaAndBump(USDC_MINT);
+  const bankUsdcAtaData = Buffer.alloc(ACCOUNT_SIZE);
 
-  await mintTo(
-    context.banksClient,
-    context.payer,
-    USDC_MINT,
-    bankUsdcAtaPda,
-    context.payer.publicKey,
-    amount
+  AccountLayout.encode(
+    {
+      amount: BigInt(amount),
+      closeAuthority: PublicKey.default,
+      closeAuthorityOption: 0,
+      delegate: PublicKey.default,
+      delegatedAmount: 0n,
+      delegateOption: 0,
+      isNative: 0n,
+      isNativeOption: 0,
+      mint: USDC_MINT,
+      owner: bankUsdcAtaPda,
+      state: 1,
+    },
+    bankUsdcAtaData,
   );
+
+  context.setAccount(bankUsdcAtaPda, {
+    data: bankUsdcAtaData,
+    executable: false,
+    lamports: LAMPORTS_PER_SOL,
+    owner: TOKEN_PROGRAM_ID,
+  });
 }
 
 export async function mintToBankSol(
   context: ProgramTestContext,
-  lamports: number
+  lamports: number,
 ) {
   const [bankSolAtaPda] = getBankAtaPdaAndBump(NATIVE_MINT);
+  const bankSolAtaData = Buffer.alloc(ACCOUNT_SIZE);
 
-  const tx = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: context.payer.publicKey,
-      toPubkey: bankSolAtaPda,
-      lamports,
-    }),
-    createSyncNativeInstruction(bankSolAtaPda)
+  AccountLayout.encode(
+    {
+      amount: BigInt(lamports),
+      closeAuthority: PublicKey.default,
+      closeAuthorityOption: 0,
+      delegate: PublicKey.default,
+      delegatedAmount: 0n,
+      delegateOption: 0,
+      isNative: 1n,
+      isNativeOption: 1,
+      mint: NATIVE_MINT,
+      owner: bankSolAtaPda,
+      state: 1,
+    },
+    bankSolAtaData,
   );
 
-  tx.recentBlockhash = context.lastBlockhash;
-  tx.sign(context.payer);
-
-  await context.banksClient.processTransaction(tx);
+  context.setAccount(bankSolAtaPda, {
+    data: bankSolAtaData,
+    executable: false,
+    lamports,
+    owner: TOKEN_PROGRAM_ID,
+  });
 }
 
 export async function setPriceFeedAccs(
   context: ProgramTestContext,
-  pubkeys: PublicKey[]
+  pubkeys: PublicKey[],
 ) {
   const accInfos = await devnetConnection.getMultipleAccountsInfo(pubkeys);
 
@@ -132,7 +157,7 @@ export async function forwardTime(context: ProgramTestContext, sec: number) {
       clock.epochStartTimestamp,
       clock.epoch,
       clock.leaderScheduleEpoch,
-      clock.unixTimestamp + BigInt(sec)
-    )
+      clock.unixTimestamp + BigInt(sec),
+    ),
   );
 }

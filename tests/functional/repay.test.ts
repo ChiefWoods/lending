@@ -45,7 +45,7 @@ describe("repay", () => {
 
   const [bankUsdc, bankSol, userA] = Array.from(
     { length: 3 },
-    Keypair.generate
+    Keypair.generate,
   );
 
   const tokenProgram = TOKEN_PROGRAM_ID;
@@ -56,9 +56,9 @@ describe("repay", () => {
         mint,
         userA.publicKey,
         false,
-        tokenProgram
+        tokenProgram,
       );
-    }
+    },
   );
 
   const initUserUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
@@ -66,7 +66,7 @@ describe("repay", () => {
 
   beforeEach(async () => {
     const [userUsdcAtaData, userSolAtaData] = Array.from({ length: 2 }, () =>
-      Buffer.alloc(ACCOUNT_SIZE)
+      Buffer.alloc(ACCOUNT_SIZE),
     );
 
     AccountLayout.encode(
@@ -83,7 +83,7 @@ describe("repay", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userUsdcAtaData
+      userUsdcAtaData,
     );
 
     AccountLayout.encode(
@@ -100,7 +100,7 @@ describe("repay", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userSolAtaData
+      userSolAtaData,
     );
 
     ({ context, provider, program } = await getBankrunSetup([
@@ -275,7 +275,7 @@ describe("repay", () => {
 
     expect(postBankSolTotalBorrowed).toBeLessThan(initBankSolTotalBorrowed);
     expect(postBankSolTotalBorrowedShares).toBeLessThan(
-      initBankSolTotalBorrowedShares
+      initBankSolTotalBorrowedShares,
     );
 
     userAcc = await getUserAcc(program, userPda);
@@ -289,7 +289,7 @@ describe("repay", () => {
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankSolAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
     expect(userAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
 
@@ -298,7 +298,7 @@ describe("repay", () => {
     ).amount;
 
     expect(Number(postBankSolAtaAccBal)).toBeGreaterThan(
-      Number(initBankSolAtaAccBal)
+      Number(initBankSolAtaAccBal),
     );
   });
 
@@ -381,7 +381,7 @@ describe("repay", () => {
 
     expect(postBankUsdcTotalBorrowed).toBeLessThan(initBankUsdcTotalBorrowed);
     expect(postBankUsdcTotalBorrowedShares).toBeLessThan(
-      initBankUsdcTotalBorrowedShares
+      initBankUsdcTotalBorrowedShares,
     );
 
     userAcc = await getUserAcc(program, userPda);
@@ -395,7 +395,7 @@ describe("repay", () => {
     const { unixTimestamp } = await context.banksClient.getClock();
 
     expect(bankUsdcAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(
-      unixTimestamp
+      unixTimestamp,
     );
     expect(userAcc.lastUpdated.toNumber()).toBeLessThanOrEqual(unixTimestamp);
 
@@ -404,7 +404,7 @@ describe("repay", () => {
     ).amount;
 
     expect(Number(postBankUsdcAtaAccBal)).toBeGreaterThan(
-      Number(initBankUsdcAtaAccBal)
+      Number(initBankUsdcAtaAccBal),
     );
   });
 

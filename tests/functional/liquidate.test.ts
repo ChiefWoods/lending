@@ -45,7 +45,7 @@ describe("liquidate", () => {
 
   const [bankUsdc, bankSol, userA, liquidatorA] = Array.from(
     { length: 4 },
-    Keypair.generate
+    Keypair.generate,
   );
 
   const tokenProgram = TOKEN_PROGRAM_ID;
@@ -56,23 +56,23 @@ describe("liquidate", () => {
         mint,
         userA.publicKey,
         false,
-        tokenProgram
+        tokenProgram,
       );
-    }
+    },
   );
 
   const liquidatorSolAtaPda = getAssociatedTokenAddressSync(
     NATIVE_MINT,
     liquidatorA.publicKey,
     false,
-    tokenProgram
+    tokenProgram,
   );
 
   const liquidatorUsdcAtaPda = getAssociatedTokenAddressSync(
     USDC_MINT,
     liquidatorA.publicKey,
     false,
-    tokenProgram
+    tokenProgram,
   );
 
   const initUserUsdcAtaBal = 1000 * 10 ** 6; // 1000 USDC
@@ -102,7 +102,7 @@ describe("liquidate", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userUsdcAtaData
+      userUsdcAtaData,
     );
 
     AccountLayout.encode(
@@ -119,7 +119,7 @@ describe("liquidate", () => {
         owner: userA.publicKey,
         state: 1,
       },
-      userSolAtaData
+      userSolAtaData,
     );
 
     AccountLayout.encode(
@@ -136,7 +136,7 @@ describe("liquidate", () => {
         owner: liquidatorA.publicKey,
         state: 1,
       },
-      liquidatorUsdcAtaData
+      liquidatorUsdcAtaData,
     );
 
     AccountLayout.encode(
@@ -153,7 +153,7 @@ describe("liquidate", () => {
         owner: liquidatorA.publicKey,
         state: 1,
       },
-      liquidatorSolAtaData
+      liquidatorSolAtaData,
     );
 
     ({ context, provider, program } = await getBankrunSetup([
@@ -370,16 +370,16 @@ describe("liquidate", () => {
     const postUserDepositedUsdcShares = userAcc.depositedUsdcShares;
 
     expect(postUserBorrowedSol.toNumber()).toBeLessThan(
-      initUserBorrowedSol.toNumber()
+      initUserBorrowedSol.toNumber(),
     );
     expect(postUserBorrowedSolShares.toNumber()).toBeLessThan(
-      initUserBorrowedSolShares.toNumber()
+      initUserBorrowedSolShares.toNumber(),
     );
     expect(postUserDepositedUsdc.toNumber()).toBeLessThan(
-      initUserDepositedUsdc.toNumber()
+      initUserDepositedUsdc.toNumber(),
     );
     expect(postUserDepositedUsdcShares.toNumber()).toBeLessThan(
-      initUserDepositedUsdcShares.toNumber()
+      initUserDepositedUsdcShares.toNumber(),
     );
 
     const postLiquidatorSolAtaBal = (
@@ -390,7 +390,7 @@ describe("liquidate", () => {
     ).amount;
 
     expect(Number(postLiquidatorSolAtaBal)).toBeLessThan(
-      initLiquidatorSolAtaBal
+      initLiquidatorSolAtaBal,
     );
     expect(Number(postLiquidatorUsdcAtaBal)).toBeGreaterThan(0);
 
@@ -402,10 +402,10 @@ describe("liquidate", () => {
     ).amount;
 
     expect(Number(postBorrowedBankAtaBal)).toBeGreaterThan(
-      initBorrowedBankAtaBal
+      initBorrowedBankAtaBal,
     );
     expect(Number(postCollateralBankAtaBal)).toBeLessThan(
-      initCollateralBankAtaBal
+      initCollateralBankAtaBal,
     );
   });
 
@@ -519,16 +519,16 @@ describe("liquidate", () => {
     const postUserDepositedSolShares = userAcc.depositedSolShares;
 
     expect(postUserBorrowedUsdc.toNumber()).toBeLessThan(
-      initUserBorrowedUsdc.toNumber()
+      initUserBorrowedUsdc.toNumber(),
     );
     expect(postUserBorrowedUsdcShares.toNumber()).toBeLessThan(
-      initUserBorrowedUsdcShares.toNumber()
+      initUserBorrowedUsdcShares.toNumber(),
     );
     expect(postUserDepositedSol.toNumber()).toBeLessThan(
-      initUserDepositedSol.toNumber()
+      initUserDepositedSol.toNumber(),
     );
     expect(postUserDepositedSolShares.toNumber()).toBeLessThan(
-      initUserDepositedSolShares.toNumber()
+      initUserDepositedSolShares.toNumber(),
     );
 
     const postLiquidatorUsdcAtaBal = (
@@ -539,7 +539,7 @@ describe("liquidate", () => {
     ).amount;
 
     expect(Number(postLiquidatorUsdcAtaBal)).toBeLessThan(
-      initLiquidatorUsdcAtaBal
+      initLiquidatorUsdcAtaBal,
     );
     expect(Number(postLiquidatorSolAtaBal)).toBeGreaterThan(0);
 
@@ -551,10 +551,10 @@ describe("liquidate", () => {
     ).amount;
 
     expect(Number(postBorrowedBankAtaBal)).toBeGreaterThan(
-      initBorrowedBankAtaBal
+      initBorrowedBankAtaBal,
     );
     expect(Number(postCollateralBankAtaBal)).toBeLessThan(
-      initCollateralBankAtaBal
+      initCollateralBankAtaBal,
     );
   });
 });
