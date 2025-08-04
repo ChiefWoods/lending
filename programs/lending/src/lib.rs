@@ -11,41 +11,87 @@ pub use instructions::*;
 pub use state::*;
 pub use utils::*;
 
-declare_id!("DdjBM9scqgaLvE4iskb1cYqqJYFMScRXmi1xnvHPsANt");
+declare_id!("DxekgdhR9ubX83YtgYH5gpARnNLKT3v5rbMqLJ4jgX3s");
 
 #[program]
 pub mod lending {
     use super::*;
 
-    pub fn init_bank(ctx: Context<InitBank>, args: InitBankArgs) -> Result<()> {
-        InitBank::handler(ctx, args)
+    pub fn initialize_market(ctx: Context<InitializeMarket>, name: String) -> Result<()> {
+        InitializeMarket::handler(ctx, name)
     }
 
-    pub fn update_bank(ctx: Context<UpdateBank>, args: UpdateBankArgs) -> Result<()> {
-        UpdateBank::handler(ctx, args)
+    pub fn initialize_reserve(
+        ctx: Context<InitializeReserve>,
+        args: InitializeReserveArgs,
+    ) -> Result<()> {
+        InitializeReserve::handler(ctx, args)
     }
 
-    pub fn init_user(ctx: Context<InitUser>, usdc_mint: Pubkey) -> Result<()> {
-        InitUser::handler(ctx, usdc_mint)
+    pub fn update_reserve(ctx: Context<UpdateReserve>, args: UpdateReserveArgs) -> Result<()> {
+        UpdateReserve::handler(ctx, args)
     }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        Deposit::handler(ctx, amount)
+    pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> Result<()> {
+        RefreshReserve::handler(ctx)
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        Withdraw::handler(ctx, amount)
+    pub fn initialize_obligation(ctx: Context<InitializeObligation>) -> Result<()> {
+        InitializeObligation::handler(ctx)
     }
 
-    pub fn borrow(ctx: Context<Borrow>, amount: u64) -> Result<()> {
-        Borrow::handler(ctx, amount)
+    pub fn refresh_obligation(ctx: Context<RefreshObligation>) -> Result<()> {
+        RefreshObligation::handler(ctx)
     }
 
-    pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
-        Repay::handler(ctx, amount)
+    pub fn deposit_reserve_liquidity_and_obligation_collateral(
+        ctx: Context<DepositReserveLiquidityAndObligationCollateral>,
+        collateral_amount: u64,
+    ) -> Result<()> {
+        DepositReserveLiquidityAndObligationCollateral::handler(ctx, collateral_amount)
     }
 
-    pub fn liquidate(ctx: Context<Liquidate>) -> Result<()> {
-        Liquidate::handler(ctx)
+    pub fn withdraw_obligation_collateral(
+        ctx: Context<WithdrawObligationCollateral>,
+        collateral_amount: u64,
+    ) -> Result<()> {
+        WithdrawObligationCollateral::handler(ctx, collateral_amount)
+    }
+
+    pub fn borrow_obligation_liquidity(
+        ctx: Context<BorrowObligationLiquidity>,
+        liquidity_amount: u64,
+    ) -> Result<()> {
+        BorrowObligationLiquidity::handler(ctx, liquidity_amount)
+    }
+
+    pub fn repay_obligation_liquidity(
+        ctx: Context<RepayObligationLiquidity>,
+        liquidity_amount: u64,
+    ) -> Result<()> {
+        RepayObligationLiquidity::handler(ctx, liquidity_amount)
+    }
+
+    pub fn liquidate_obligation(ctx: Context<LiquidateObligation>) -> Result<()> {
+        LiquidateObligation::handler(ctx)
+    }
+
+    pub fn flash_borrow_reserve_liquidity(
+        ctx: Context<FlashBorrowReserveLiquidity>,
+        borrow_amount: u64,
+    ) -> Result<()> {
+        FlashBorrowReserveLiquidity::handler(ctx, borrow_amount)
+    }
+
+    pub fn flash_repay_reserve_liquidity(
+        ctx: Context<FlashRepayReserveLiquidity>,
+        repay_amount: u64,
+        borrow_ix_index: u8,
+    ) -> Result<()> {
+        FlashRepayReserveLiquidity::handler(ctx, repay_amount, borrow_ix_index)
+    }
+
+    pub fn redeem_fees(ctx: Context<RedeemFees>) -> Result<()> {
+        RedeemFees::handler(ctx)
     }
 }
