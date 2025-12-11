@@ -1,202 +1,101 @@
-import { AnchorError, Program } from "@coral-xyz/anchor";
-import { Lending } from "../target/types/lending";
-import idl from "../target/idl/lending.json";
 import {
-  ACCOUNT_SIZE,
-  AccountLayout,
-  MINT_SIZE,
-  MintLayout,
-  NATIVE_MINT,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
-import {
-  clusterApiUrl,
+  AddressLookupTableAccount,
   Connection,
+  Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
+  Signer,
   SystemProgram,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
-import {
-  SOL_USD_PRICE_FEED_PDA,
-  USDC_MINT,
-  USDC_USD_PRICE_FEED_PDA,
-} from "./constants";
-import { getBankAtaPda } from "./pda";
-import { AccountInfoBytes, Clock, LiteSVM } from "litesvm";
-import { fromWorkspace, LiteSVMProvider } from "anchor-litesvm";
+import { SURFPOOL_RPC_URL } from "./constants";
+import { Surfpool } from "./surfpool";
+import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import { expect } from "bun:test";
+import { LendingClient } from "./LendingClient";
 
-const devnetConnection = new Connection(clusterApiUrl("devnet"));
+export const connection = new Connection(SURFPOOL_RPC_URL, "processed");
+const defaultWallet = new Wallet(Keypair.generate());
+const provider = new AnchorProvider(connection, defaultWallet, {
+  commitment: "processed",
+});
+const client = new LendingClient(provider);
+
+await airdropAccount(defaultWallet.publicKey);
+
+export async function airdropAccount(
+  publicKey: PublicKey,
+  lamports: number = LAMPORTS_PER_SOL,
+) {
+  await Surfpool.setAccount({
+    publicKey: publicKey.toBase58(),
+    lamports,
+  });
+}
 
 export async function getSetup(
-  accounts: { pubkey: PublicKey; account: AccountInfoBytes }[] = [],
+  accounts: {
+    publicKey: PublicKey;
+    lamports?: number;
+  }[],
 ) {
-  const litesvm = fromWorkspace("./");
-
-  const [usdcMintData, wrappedSolData] = Array.from({ length: 2 }, () =>
-    Buffer.alloc(MINT_SIZE),
-  );
-  const wrappedSolSupply = 10 ** 12;
-
-  MintLayout.encode(
-    {
-      mintAuthority: PublicKey.default,
-      mintAuthorityOption: 0,
-      supply: BigInt(10 ** 6 * 10 ** 6),
-      decimals: 6,
-      isInitialized: true,
-      freezeAuthority: PublicKey.default,
-      freezeAuthorityOption: 0,
-    },
-    usdcMintData,
-  );
-
-  MintLayout.encode(
-    {
-      mintAuthority: PublicKey.default,
-      mintAuthorityOption: 0,
-      supply: BigInt(wrappedSolSupply),
-      decimals: 9,
-      isInitialized: true,
-      freezeAuthority: PublicKey.default,
-      freezeAuthorityOption: 0,
-    },
-    wrappedSolData,
-  );
-
-  litesvm.setAccount(USDC_MINT, {
-    data: usdcMintData,
-    executable: false,
-    lamports: wrappedSolSupply,
-    owner: TOKEN_PROGRAM_ID,
-  });
-
-  litesvm.setAccount(NATIVE_MINT, {
-    data: wrappedSolData,
-    executable: false,
-    lamports: wrappedSolSupply,
-    owner: TOKEN_PROGRAM_ID,
-  });
-
-  const [solUsdPriceFeedInfo, usdcUsdPriceFeedInfo] =
-    await devnetConnection.getMultipleAccountsInfo([
-      SOL_USD_PRICE_FEED_PDA,
-      USDC_USD_PRICE_FEED_PDA,
-    ]);
-
-  const priceFeedMap = new Map<PublicKey, AccountInfoBytes>([
-    [SOL_USD_PRICE_FEED_PDA, solUsdPriceFeedInfo],
-    [USDC_USD_PRICE_FEED_PDA, usdcUsdPriceFeedInfo],
-  ]);
-
-  for (const [pubkey, info] of priceFeedMap.entries()) {
-    litesvm.setAccount(pubkey, {
-      data: info.data,
-      executable: false,
-      lamports: info.lamports,
-      owner: info.owner,
-    });
+  // airdrops to accounts
+  for (const { publicKey, lamports } of accounts) {
+    await airdropAccount(publicKey, lamports);
   }
 
-  for (const { pubkey, account } of accounts) {
-    litesvm.setAccount(new PublicKey(pubkey), {
-      data: account.data,
-      executable: account.executable,
-      lamports: account.lamports,
-      owner: new PublicKey(account.owner),
-    });
+  return { client };
+}
+
+export async function expectError(error: Error, code: string) {
+  expect(error.message).toInclude(code);
+}
+
+export async function expireBlockhash() {
+  const currentSlot = await connection.getSlot("processed");
+  while (true) {
+    const newSlot = await connection.getSlot("processed");
+    if (newSlot > currentSlot) break;
   }
-
-  const provider = new LiteSVMProvider(litesvm);
-  const program = new Program<Lending>(idl, provider);
-
-  return { litesvm, provider, program };
 }
 
-export function fundedSystemAccountInfo(
-  lamports: number = LAMPORTS_PER_SOL,
-): AccountInfoBytes {
-  return {
-    lamports,
-    data: Buffer.alloc(0),
-    owner: SystemProgram.programId,
-    executable: false,
-  };
+/**
+ * Resets singleton accounts that persist between tests in the Surfpool environment to a default state.
+ * @param pubkeys
+ */
+export async function resetAccounts(pubkeys: PublicKey[]) {
+  pubkeys
+    .filter((pk) => pk !== undefined && !pk.equals(PublicKey.default))
+    .forEach(async (pubkey) => {
+      await Surfpool.setAccount({
+        publicKey: pubkey.toBase58(),
+        lamports: 0,
+        // data: Buffer.alloc(0).toBase64(),
+        data: Buffer.alloc(0).toString("base64"),
+        executable: false,
+        owner: SystemProgram.programId.toBase58(),
+      });
+    });
 }
 
-export async function expectAnchorError(error: Error, code: string) {
-  expect(error).toBeInstanceOf(AnchorError);
-  const { errorCode } = (error as AnchorError).error;
-  expect(errorCode.code).toBe(code);
-}
+export async function buildAndSendv0Tx(
+  ixs: TransactionInstruction[],
+  signers: Signer[],
+  luts: AddressLookupTableAccount[] = [],
+) {
+  const messageV0 = new TransactionMessage({
+    payerKey: signers[0].publicKey,
+    recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
+    instructions: ixs,
+  }).compileToV0Message(luts);
 
-export async function forwardTime(litesvm: LiteSVM, sec: number) {
-  const clock = litesvm.getClock();
-  litesvm.setClock(
-    new Clock(
-      clock.slot,
-      clock.epochStartTimestamp,
-      clock.epoch,
-      clock.leaderScheduleEpoch,
-      clock.unixTimestamp + BigInt(sec),
-    ),
-  );
-}
+  const tx = new VersionedTransaction(messageV0);
+  tx.sign(signers);
 
-export async function mintToBankUsdc(litesvm: LiteSVM, amount: number) {
-  const bankUsdcAtaPda = getBankAtaPda(USDC_MINT);
-  const bankUsdcAtaData = Buffer.alloc(ACCOUNT_SIZE);
+  const signature = await connection.sendTransaction(tx);
+  await connection.confirmTransaction(signature);
 
-  AccountLayout.encode(
-    {
-      amount: BigInt(amount),
-      closeAuthority: PublicKey.default,
-      closeAuthorityOption: 0,
-      delegate: PublicKey.default,
-      delegatedAmount: 0n,
-      delegateOption: 0,
-      isNative: 0n,
-      isNativeOption: 0,
-      mint: USDC_MINT,
-      owner: bankUsdcAtaPda,
-      state: 1,
-    },
-    bankUsdcAtaData,
-  );
-
-  litesvm.setAccount(bankUsdcAtaPda, {
-    data: bankUsdcAtaData,
-    executable: false,
-    lamports: LAMPORTS_PER_SOL,
-    owner: TOKEN_PROGRAM_ID,
-  });
-}
-
-export async function mintToBankSol(litesvm: LiteSVM, lamports: number) {
-  const bankSolAtaPda = getBankAtaPda(NATIVE_MINT);
-  const bankSolAtaData = Buffer.alloc(ACCOUNT_SIZE);
-
-  AccountLayout.encode(
-    {
-      amount: BigInt(lamports),
-      closeAuthority: PublicKey.default,
-      closeAuthorityOption: 0,
-      delegate: PublicKey.default,
-      delegatedAmount: 0n,
-      delegateOption: 0,
-      isNative: 1n,
-      isNativeOption: 1,
-      mint: NATIVE_MINT,
-      owner: bankSolAtaPda,
-      state: 1,
-    },
-    bankSolAtaData,
-  );
-
-  litesvm.setAccount(bankSolAtaPda, {
-    data: bankSolAtaData,
-    executable: false,
-    lamports,
-    owner: TOKEN_PROGRAM_ID,
-  });
+  return signature;
 }
