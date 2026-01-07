@@ -51,9 +51,8 @@ impl ObligationLiquidity {
                     .ceil()
                     .safe_to_u64()?;
 
-                if borrowed_amount == self.borrowed_amount {
-                    msg!("no borrow interest accrued after rounding");
-                } else {
+                // NOTE: it's possible to have no borrow interest accrued after rounding
+                if borrowed_amount != self.borrowed_amount {
                     self.borrowed_amount = borrowed_amount;
                 }
 
