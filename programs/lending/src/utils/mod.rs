@@ -1,5 +1,5 @@
-pub mod ixIterator;
-pub use ixIterator::*;
+pub mod ix_iterator;
+pub use ix_iterator::*;
 
 pub mod safe_math;
 pub use safe_math::*;
