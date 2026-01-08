@@ -5,8 +5,8 @@ use fixed::types::I80F48;
 
 use crate::{
     bps_to_i80f48, error::LendingError, i80f48_pow, LastUpdate, Obligation, ObligationCollateral,
-    ObligationLiquidity, SafeConvert, SafeMath, SafeMathAssign, WrappedI80F48, MAX_BASIS_POINTS,
-    SLOTS_PER_YEAR,
+    ObligationLiquidity, SafeConvert, SafeMath, SafeMathAssign, SafePow, WrappedI80F48,
+    MAX_BASIS_POINTS, SLOTS_PER_YEAR,
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Clone)]
@@ -341,7 +341,12 @@ impl Reserve {
         Ok(())
     }
 
-    pub fn calculate_borrow(&self, amount_to_borrow: u64, max_borrow_value: I80F48) -> Result<u64> {
+    pub fn calculate_borrow(
+        &self,
+        amount_to_borrow: u64,
+        mint_decimals: u8,
+        max_borrow_value: I80F48,
+    ) -> Result<u64> {
         if amount_to_borrow == u64::MAX {
             let borrow_amount = max_borrow_value
                 .safe_div(self.liquidity.market_price.into())?
@@ -351,8 +356,9 @@ impl Reserve {
 
             Ok(borrow_amount)
         } else {
-            let borrow_value =
-                I80F48::from(amount_to_borrow).safe_mul(self.liquidity.market_price.into())?;
+            let borrow_value = I80F48::from(amount_to_borrow)
+                .safe_div(10_u64.safe_pow(mint_decimals.into())?.into())?
+                .safe_mul(self.liquidity.market_price.into())?;
 
             require!(
                 borrow_value <= max_borrow_value,

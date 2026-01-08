@@ -71,8 +71,11 @@ impl BorrowObligationLiquidity<'_> {
             LendingError::MaxBorrowValueZero
         );
 
-        let borrowable_amount =
-            reserve.calculate_borrow(liquidity_amount, remaining_borrow_value)?;
+        let borrowable_amount = reserve.calculate_borrow(
+            liquidity_amount,
+            liquidity_mint.decimals,
+            remaining_borrow_value,
+        )?;
 
         require!(borrowable_amount > 0, LendingError::BorrowTooSmall);
 
