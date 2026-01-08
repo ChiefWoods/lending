@@ -8,8 +8,8 @@ use anchor_spl::{
 use fixed::types::I80F48;
 
 use crate::{
-    error::LendingError, reserve_signer, validate_reserve_refreshed, Obligation, Reserve,
-    SafeConvert, SafeMath, RECEIPT_MINT_SEED, RESERVE_SEED,
+    bps_to_i80f48, error::LendingError, reserve_signer, validate_reserve_refreshed, Obligation,
+    Reserve, SafeConvert, SafeMath, RECEIPT_MINT_SEED, RESERVE_SEED,
 };
 
 #[derive(Accounts)]
@@ -114,7 +114,7 @@ impl WithdrawObligationCollateral<'_> {
             );
 
             let max_withdraw_value =
-                obligation.max_withdraw_value(I80F48::from(reserve.config.loan_to_value_bps))?;
+                obligation.max_withdraw_value(bps_to_i80f48(reserve.config.loan_to_value_bps)?)?;
 
             require!(
                 max_withdraw_value > I80F48::ZERO,

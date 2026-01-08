@@ -266,18 +266,18 @@ pub struct NewReserveArgs {
 impl Reserve {
     fn current_borrow_rate(&self) -> Result<I80F48> {
         let utilization_rate = self.liquidity.utilization_rate()?;
-        let optimal_utilization_rate = I80F48::from(self.config.optimal_utilization_rate_bps);
+        let optimal_utilization_rate = bps_to_i80f48(self.config.optimal_utilization_rate_bps)?;
 
         if utilization_rate < optimal_utilization_rate
             || self.config.optimal_utilization_rate_bps == MAX_BASIS_POINTS
         {
             let normalized_rate = utilization_rate.safe_div(optimal_utilization_rate)?;
-            let min_rate = I80F48::from(self.config.min_borrow_rate_bps);
-            let rate_range = I80F48::from(
+            let min_rate = bps_to_i80f48(self.config.min_borrow_rate_bps)?;
+            let rate_range = bps_to_i80f48(
                 self.config
                     .optimal_borrow_rate_bps
                     .safe_sub(self.config.min_borrow_rate_bps)?,
-            );
+            )?;
 
             Ok(normalized_rate.safe_mul(rate_range)?.safe_add(min_rate)?)
         } else {
@@ -286,12 +286,12 @@ impl Reserve {
                 .safe_div(bps_to_i80f48(
                     MAX_BASIS_POINTS.safe_sub(self.config.optimal_utilization_rate_bps)?,
                 )?)?;
-            let min_rate = I80F48::from(self.config.optimal_borrow_rate_bps);
-            let rate_range = I80F48::from(
+            let min_rate = bps_to_i80f48(self.config.optimal_borrow_rate_bps)?;
+            let rate_range = bps_to_i80f48(
                 self.config
                     .max_borrow_rate_bps
                     .safe_sub(self.config.optimal_borrow_rate_bps)?,
-            );
+            )?;
 
             Ok(normalized_rate.safe_mul(rate_range)?.safe_add(min_rate)?)
         }

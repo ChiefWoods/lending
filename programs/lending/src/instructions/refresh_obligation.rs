@@ -3,8 +3,8 @@ use anchor_spl::token_interface::Mint;
 use fixed::types::I80F48;
 
 use crate::{
-    error::LendingError, validate_reserve_refreshed, Obligation, Reserve, SafeMath, SafeMathAssign,
-    SafePow, ID, RECEIPT_MINT_SEED,
+    bps_to_i80f48, error::LendingError, validate_reserve_refreshed, Obligation, Reserve, SafeMath,
+    SafeMathAssign, SafePow, ID, RECEIPT_MINT_SEED,
 };
 
 #[derive(Accounts)]
@@ -82,10 +82,10 @@ impl RefreshObligation<'_> {
             obligation_collateral.market_value = market_value.into();
             deposited_value.safe_add_assign(market_value)?;
             weighted_allowed_borrow_value.safe_add_assign(
-                market_value.safe_mul(I80F48::from(deposit_reserve.config.loan_to_value_bps))?,
+                market_value.safe_mul(bps_to_i80f48(deposit_reserve.config.loan_to_value_bps)?)?,
             )?;
             weighted_unhealthy_borrow_value.safe_add_assign(market_value.safe_mul(
-                I80F48::from(deposit_reserve.config.liquidation_threshold_bps),
+                bps_to_i80f48(deposit_reserve.config.liquidation_threshold_bps)?,
             )?)?;
         }
 
